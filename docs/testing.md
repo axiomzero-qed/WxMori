@@ -7,6 +7,7 @@
 | Check / 检查 | Evidence / 证据 |
 | --- | --- |
 | Go regression / Go 回归 | `go test ./...` and `go vet ./...` passed locally on Windows / Windows 本机通过 |
+| Cloud CI / 云端检查 | Windows, Linux and macOS passed; Linux `go test -race ./...` passed / 三系统通过，Linux 并发检查通过；[run](https://github.com/axiomzero-qed/WxMori/actions/runs/38944361112) |
 | Crypto / 加密 | Independent PBKDF2 vector; multi-block CBC; page-number/ciphertext/IV/MAC tampering; later-page failure cleanup / 独立派生向量、多块 CBC、页号及密文/IV/MAC 篡改、失败清理 |
 | Parsing / 解析 | Per-shard senders; zstd; compound types; nested XML; multiline text; repeated zero-ID messages; dedup / 每库发送者、压缩、复合类型、嵌套 XML、多行、零 ID 重复、去重 |
 | Snapshot / 快照 | Plaintext WAL committed data retained, originals unchanged, error cleanup / 明文 WAL 已提交数据保留、源文件不变、错误清理 |

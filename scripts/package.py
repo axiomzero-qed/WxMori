@@ -16,7 +16,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 LICENSE_PREFIXES = ("LICENSE", "COPYING", "NOTICE")
-PROJECT_FILES = ("README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "SECURITY.md", "ROADMAP.md", "config.example.json")
+PROJECT_FILES = ("README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "SECURITY.md", "ROADMAP.md", "CHANGELOG.md", "config.example.json")
 
 
 def run_go(go: str, *args: str) -> str:
