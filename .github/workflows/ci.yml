@@ -1,0 +1,30 @@
+name: Tests / 测试
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify / 校验
+        run: go vet ./...
+      - name: Test / 测试
+        run: go test ./...
+      - name: Race check / 并发检查
+        if: runner.os == 'Linux'
+        run: go test -race ./...
+      - name: Build / 构建
+        run: go build -trimpath -o bin/wxmori.exe ./cmd/wxmori
+      - name: MCP protocol smoke test / MCP 协议测试
+        run: python scripts/smoke_test.py --command bin/wxmori.exe

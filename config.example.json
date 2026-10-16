@@ -1,0 +1,5 @@
+{
+  "decrypted_dir": "./my-local-sqlite-copy",
+  "output_dir": "./exports",
+  "timezone": "Asia/Shanghai"
+}

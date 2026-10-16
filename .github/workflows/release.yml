@@ -1,0 +1,54 @@
+name: Release / 发布
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [windows-amd64, windows-arm64, linux-amd64, linux-arm64, darwin-amd64, darwin-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Package / 打包
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='${{ matrix.target }}'
+          export GOOS="${target%-*}" GOARCH="${target#*-}" CGO_ENABLED=0
+          binary=wxmori
+          if [[ "$GOOS" == windows ]]; then binary=wxmori.exe; fi
+          binary_path="$RUNNER_TEMP/$binary"
+          go build -trimpath -o "$binary_path" ./cmd/wxmori
+          python scripts/package.py \
+            --binary "$binary_path" \
+            --version "$GITHUB_REF_NAME" \
+            --os "$GOOS" \
+            --arch "$GOARCH" \
+            --out dist \
+            --go go
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish prerelease / 发布预览版
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --prerelease --title "WxMori / 微忆 $GITHUB_REF_NAME" --notes "Local WeChat export over MCP. Read README for supported sources and encrypted WAL limitations. / 通过 MCP 导出本地微信记录；支持范围及加密 WAL 限制请参阅 README。" dist/*
