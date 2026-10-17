@@ -20,9 +20,9 @@
 
 **English:** MCP `capture_key` uses the `data_dir` already selected by `init` and controls an asynchronous job with `start`, `status`, and `stop`; the default timeout is 180 seconds, maximum 600. A successful start is not a successful capture. The CLI `key capture` command runs in the foreground and can be stopped with Ctrl+C. Keys can still be supplied locally through `key_file` or `WXMORI_MASTER_KEY`; never put them in command arguments, MCP arguments, chats, or tickets. Errors must not contain keys, message bodies, or personal paths.
 
-**中文：** 读取目标进程内存可能触发安全软件检查；不要默认称为误报。若程序被拦截，可按安全软件厂商流程逐文件提交审查；不要关闭安全软件。若访问被拒绝，请让 WxMori 与微信在同一 Windows 用户会话中运行，并遵循设备权限策略。捕获后仍建议正常关闭微信以取得稳定副本；工作分支会在私有副本回放 WAL，已发布 alpha1 不支持非空加密 WAL。绝不删除源 WAL。
+**中文：** 读取目标进程内存可能触发安全软件检查；不要默认称为误报。若程序被拦截，可按安全软件厂商流程逐文件提交审查；不要关闭安全软件。若访问被拒绝，请让 WxMori 与微信在同一 Windows 用户会话中运行，并遵循设备权限策略。捕获后仍建议正常关闭微信以取得稳定副本；当前预览版会在私有副本回放 WAL，已发布 alpha1 不支持非空加密 WAL。绝不删除源 WAL。
 
-**English:** Reading another process's memory may trigger security-software checks; do not presume a detection is a false positive. If an executable is blocked, submit that file for vendor review; do not disable security software. If access is denied, run WxMori and WeChat in the same Windows user session and follow device permissions. Closing WeChat normally after capture is still recommended for a stable copy. The working branch replays WALs in a private copy; published alpha1 does not support non-empty encrypted WAL. Never delete a source WAL.
+**English:** Reading another process's memory may trigger security-software checks; do not presume a detection is a false positive. If an executable is blocked, submit that file for vendor review; do not disable security software. If access is denied, run WxMori and WeChat in the same Windows user session and follow device permissions. Closing WeChat normally after capture is still recommended for a stable copy. The current preview replays WALs in a private copy; published alpha1 does not support non-empty encrypted WAL. Never delete a source WAL.
 
 ## Temporary and exported files / 临时文件与导出文件
 

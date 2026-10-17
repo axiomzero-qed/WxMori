@@ -2,9 +2,9 @@
 
 ## Supported versions / 支持版本
 
-**中文：** 当前候选版 `v0.2.0-alpha.1` 的 Windows 登录时捕获仍属实验性。一次 Weixin 4.1.15.56 单账号 Luna/Python stdio 试验成功捕获并验证 12/12 核心数据库密钥，并通过读取与导出；默认调试器方式会短暂暂停线程并临时调整、恢复调试寄存器，`read_only` 方式轮询可读内存。当前代次 WAL 提交帧实测为 0，提交帧回放只由合成测试覆盖。其他微信版本和宿主未验证。报告问题时请注明 WxMori 和微信的确切版本。
+**中文：** 当前预览版 `v0.2.0-alpha.1` 的 Windows 登录时捕获仍属实验性。一次 Weixin 4.1.15.56 单账号 Luna/Python stdio 试验成功捕获并验证 12/12 核心数据库密钥，并通过读取与导出；默认调试器方式会短暂暂停线程并临时调整、恢复调试寄存器，`read_only` 方式轮询可读内存。当前代次 WAL 提交帧实测为 0，提交帧回放只由合成测试覆盖。其他微信版本和宿主未验证。报告问题时请注明 WxMori 和微信的确切版本。
 
-**English:** The current candidate `v0.2.0-alpha.1` has experimental Windows login-time capture. One Luna/Python stdio trial on a single Weixin 4.1.15.56 account captured and verified keys for all 12 core databases, then completed reads and exports. The default debugger mode briefly pauses threads and temporarily adjusts then restores debug registers; `read_only` polls readable memory. The sampled WALs had zero current-generation commit frames, so committed-frame replay is covered only by synthetic tests. Other WeChat versions and hosts are untested. Include exact WxMori and WeChat versions when reporting issues.
+**English:** The current preview release `v0.2.0-alpha.1` has experimental Windows login-time capture. One Luna/Python stdio trial on a single Weixin 4.1.15.56 account captured and verified keys for all 12 core databases, then completed reads and exports. The default debugger mode briefly pauses threads and temporarily adjusts then restores debug registers; `read_only` polls readable memory. The sampled WALs had zero current-generation commit frames, so committed-frame replay is covered only by synthetic tests. Other WeChat versions and hosts are untested. Include exact WxMori and WeChat versions when reporting issues.
 
 ## Reporting / 报告问题
 
