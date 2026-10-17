@@ -31,22 +31,23 @@
 
 ## Working-branch development checks / 工作分支开发检查
 
-**中文：** 日期：2026-10-17；版本：`v0.2.0-dev`。以下是开发分支的自动化或合成数据检查，与上方已发布 `v0.1.0-alpha.1` 的记录分开；它们不代表完整可执行程序启动、独立 stdio 客户端、模型调用或真实微信兼容性。
+**中文：** 日期：2026-10-17；版本：`v0.2.0-dev`。以下是开发分支的自动化、CI 或合成数据检查，与上方已发布 `v0.1.0-alpha.1` 的记录分开。CI 已验证完整程序启动和独立 stdio MCP 冒烟流程；这些结果不代表真实微信登录捕获或新捕获工具的模型调用已通过。
 
-**English:** Date: 2026-10-17; version: `v0.2.0-dev`. These are automated or synthetic-data checks for the development branch, separate from the published `v0.1.0-alpha.1` record above. They do not establish full executable startup, an independent stdio client, model calls, or compatibility with real WeChat.
+**English:** Date: 2026-10-17; version: `v0.2.0-dev`. These automated, CI, and synthetic-data checks are separate from the published `v0.1.0-alpha.1` record above. CI verified full executable startup and an independent stdio MCP smoke test; these results do not establish real-WeChat login capture or a model call for the new capture tool.
 
 | Check / 检查 | Evidence / 证据 |
 | --- | --- |
 | Go regression and static checks / Go 回归与静态检查 | Working-branch `go test ./...` and `go vet ./...` passed locally on Windows. / 工作分支在 Windows 本机通过 `go test ./...` 和 `go vet ./...`。 |
+| Cross-platform CI and stdio / 跨平台 CI 与 stdio | Commit `1bb45bd87cff10b0b8604a6a04a2d225e9bb9043` passed on Windows, Linux, and macOS, including full executable startup and an independent Python stdio MCP smoke test with seven tools across four protocol versions. [Run](https://github.com/axiomzero-qed/WxMori/actions/runs/39025380150) / 提交 `1bb45bd87cff10b0b8604a6a04a2d225e9bb9043` 通过 Windows、Linux 和 macOS 检查，包括完整程序启动及独立 Python stdio MCP 冒烟测试（七个工具、四个协议版本）。[运行记录](https://github.com/axiomzero-qed/WxMori/actions/runs/39025380150) |
 | Capture MCP protocol / 捕获 MCP 协议 | `TestCaptureToolProtocolWithSyntheticSource` passed using an in-memory official SDK transport; this is not an independent stdio test or model trial. / 使用内存中的官方 SDK 传输通过；这不是独立 stdio 测试或模型试用。 |
 | Read-only capture / 只读捕获 | Windows synthetic child-process memory scan and HMAC validation passed. / Windows 合成子进程内存扫描和 HMAC 校验通过。 |
 | Protected keyring / 受保护密钥环 | DPAPI `CurrentUser` tests passed. / DPAPI `CurrentUser` 测试通过。 |
-| Full executable startup / 完整程序启动 | Failed with WinError 5. The 360 Realtime Protection log confirms it deleted `wxmori-keycapture.exe` after a malware detection; the same log records an earlier block of `diagnose.exe`. The detection is confirmed, but whether it is a false positive is not established. / 启动失败并返回 WinError 5。360 实时防护记录确认其在报毒后删除了 `wxmori-keycapture.exe`，同一记录还显示此前拦截过 `diagnose.exe`。拦截事实已确认，但是否误报尚无结论。 |
+| Local executable startup / 本机程序启动 | Local startup failed with WinError 5. The 360 Realtime Protection log confirms it deleted `wxmori-keycapture.exe` after a malware detection; the same log records an earlier block of `diagnose.exe`. The detection is confirmed, but whether it is a false positive is not established. / 本机启动失败并返回 WinError 5。360 实时防护记录确认其在报毒后删除了 `wxmori-keycapture.exe`，同一记录还显示此前拦截过 `diagnose.exe`。拦截事实已确认，但是否误报尚无结论。 |
 | Real-account capture / 真实账号捕获 | The user selected their usual current account, but the real login trial is pending. A preliminary post-login scan yielded zero verified keys for 12 required databases. / 用户已选择平时使用的当前账号，但真实登录试验尚未进行。一次初步登录后扫描对 12 个所需数据库均未得到已验证密钥。 |
 
-**中文：** 当前七个 MCP 工具中的 `capture_key` 仍为实验性功能。独立完整程序 stdio 测试、新捕获工具的模型实际调用和登录期间真实捕获均待验证；合成协议测试不得表述为上述任一项已通过。
+**中文：** 当前七个 MCP 工具中的 `capture_key` 仍为实验性功能。独立完整程序 stdio 测试已在 CI 通过，但本机启动仍被 360 拦截；新捕获工具的模型实际调用和登录期间真实捕获仍待验证。合成协议测试不得替代后两项实测。
 
-**English:** `capture_key`, one of the current seven MCP tools, remains experimental. An independent full-program stdio test, an actual model call for the new capture tool, and real capture during login remain unverified; the synthetic protocol test must not be reported as passing any of these.
+**English:** `capture_key`, one of the current seven MCP tools, remains experimental. The independent full-program stdio test passed in CI, while local startup remains blocked by 360. An actual model call for the new capture tool and real capture during login remain pending; the synthetic protocol test does not replace either trial.
 
 ## Remaining coverage / 待覆盖范围
 

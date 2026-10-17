@@ -145,7 +145,7 @@ func SaveCaptured(path, account string, keys map[[16]byte][32]byte) error {
 	if err = os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
-	// An atomic replacement preserves the preceding verified file on interruption.
+	// Write and sync a sibling temporary file before replacing the keyring.
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".wxmori-key-")
 	if err != nil {
 		return err
