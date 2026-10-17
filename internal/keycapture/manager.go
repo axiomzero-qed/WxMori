@@ -23,23 +23,25 @@ import (
 )
 
 type Status struct {
-	Supported         bool         `json:"supported"`
-	Running           bool         `json:"running"`
-	ReadyForLogin     bool         `json:"ready_for_login"`
-	State             string       `json:"state"`
-	Method            string       `json:"method"`
-	RequiredDatabases int          `json:"required_databases"`
-	VerifiedDatabases int          `json:"verified_databases"`
-	ActiveProcesses   int          `json:"active_weixin_processes"`
-	AccessDenied      int          `json:"access_denied_processes"`
-	Passes            int          `json:"passes"`
-	Candidates        int          `json:"candidate_count"`
-	BytesRead         uint64       `json:"bytes_read"`
-	StartedAt         string       `json:"started_at,omitempty"`
-	FinishedAt        string       `json:"finished_at,omitempty"`
-	KeyFile           string       `json:"key_file,omitempty"`
-	Hint              string       `json:"hint"`
-	Error             *fault.Error `json:"error,omitempty"`
+	Supported         bool           `json:"supported"`
+	Running           bool           `json:"running"`
+	ReadyForLogin     bool           `json:"ready_for_login"`
+	State             string         `json:"state"`
+	Method            string         `json:"method"`
+	RequiredDatabases int            `json:"required_databases"`
+	VerifiedDatabases int            `json:"verified_databases"`
+	ActiveProcesses   int            `json:"active_weixin_processes"`
+	AccessDenied      int            `json:"access_denied_processes"`
+	Passes            int            `json:"passes"`
+	Candidates        int            `json:"candidate_count"`
+	KeySetupEvents    int            `json:"key_setup_events"`
+	ObservedAccounts  []AccountMatch `json:"observed_account_matches,omitempty"`
+	BytesRead         uint64         `json:"bytes_read"`
+	StartedAt         string         `json:"started_at,omitempty"`
+	FinishedAt        string         `json:"finished_at,omitempty"`
+	KeyFile           string         `json:"key_file,omitempty"`
+	Hint              string         `json:"hint"`
+	Error             *fault.Error   `json:"error,omitempty"`
 }
 type Manager struct {
 	mu        sync.Mutex
@@ -220,7 +222,7 @@ func (m *Manager) run(ctx context.Context, done chan struct{}) {
 		m.status.Running = false
 		m.status.ReadyForLogin = false
 		m.status.FinishedAt = time.Now().UTC().Format(time.RFC3339)
-		if m.status.State == "completed" || m.status.State == "failed" {
+		if m.status.State == "completed" || m.status.State == "failed" || m.status.State == "account_mismatch" {
 			return
 		}
 		if ctx.Err() == context.DeadlineExceeded {
@@ -406,8 +408,12 @@ func (m *Manager) fail(err error) {
 	m.status.State = "failed"
 	if f, ok := err.(*fault.Error); ok {
 		m.status.Error = f
+		if f.Code == "KEY_ACCOUNT_MISMATCH" {
+			m.status.State = "account_mismatch"
+		}
 	} else {
 		m.status.Error = fault.New("CAPTURE_FAILED", "采集失败 / Capture failed", "Check the selected account path and local permissions.")
 	}
 	m.status.Hint = m.status.Error.Hint
+	m.status.ReadyForLogin = false
 }

@@ -10,13 +10,11 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/axiomzero-qed/WxMori/internal/buildinfo"
 	"github.com/axiomzero-qed/WxMori/internal/config"
 	"github.com/axiomzero-qed/WxMori/internal/demodata"
 	"github.com/axiomzero-qed/WxMori/internal/fault"
-	"github.com/axiomzero-qed/WxMori/internal/keycapture"
 	"github.com/axiomzero-qed/WxMori/internal/mcpserver"
 	"github.com/axiomzero-qed/WxMori/internal/service"
 	"github.com/axiomzero-qed/WxMori/internal/store"
@@ -26,12 +24,15 @@ const Version = buildinfo.Version
 const help = `WxMori / 微忆 — local WeChat export for MCP / 本地微信导出
 Usage / 用法: wxmori [--config PATH] COMMAND [OPTIONS]
   init       Configure one local source / 配置一个本地数据源
+  accounts   List local accounts and file activity / 列出本机账号及文件活动
+  whoami     Verify identity from a private snapshot / 从私有快照核对账号身份
   status     Check configuration / 检查配置
   serve      Start MCP over stdio / 启动 stdio MCP
   sessions   Find chats (--keyword NAME) / 查找会话
   export     Save files (--session ID --months YYYY-MM) / 导出文件
   decrypt    Save a verified SQLite copy (--out NEW_DIR) / 保存校验过的明文副本
   key capture  Capture this account's keys during Windows login / Windows 登录期间采集本账号密钥
+  key list   List protected keyring metadata, never keys / 查看受保护密钥环元数据，不显示密钥
   demo       Create fictional test data (--dir NEW_DIR) / 创建合成测试数据
   version    Show version / 查看版本
 Keys stay in a local key file or WXMORI_MASTER_KEY. / 密钥放本地文件或环境变量。
@@ -50,6 +51,8 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 	g := flag.NewFlagSet("wxmori", flag.ContinueOnError)
 	g.SetOutput(errOut)
 	path := g.String("config", "", "Config path / 配置路径")
+	versionFlag := g.Bool("version", false, "Show version / 查看版本")
+	g.BoolVar(versionFlag, "v", false, "Show version / 查看版本")
 	g.Usage = func() { fmt.Fprint(out, help) }
 	if err := g.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -58,16 +61,20 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 		return fault.New("INVALID_ARGUMENTS", "命令行参数无效 / Invalid CLI arguments", "Run wxmori --help.")
 	}
 	args = g.Args()
+	if *versionFlag {
+		fmt.Fprintln(out, Version)
+		return nil
+	}
 	if len(args) == 0 {
 		fmt.Fprint(out, help)
 		return nil
 	}
 	command, args := args[0], args[1:]
 	if command == "key" {
-		if len(args) == 0 || args[0] != "capture" {
+		if len(args) == 0 || (args[0] != "capture" && args[0] != "list") {
 			return fault.New("UNKNOWN_COMMAND", "未知密钥命令 / Unknown key command", "Use wxmori [--config PATH] key capture --timeout 180.")
 		}
-		command = "key-capture"
+		command = "key-" + args[0]
 		args = args[1:]
 	}
 	if command == "version" || command == "--version" {
@@ -83,8 +90,11 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 	var dir, dataDir, decryptedDir, keyFile, outputDir, timezone, keyword, session, months, from, to, format string
 	var captureTimeout int
 	var captureMode string
+	var progressMode, accountsRoot string
+	var force, inspect, allSessions bool
 	switch command {
 	case "init":
+		f.BoolVar(&force, "force", false, "Explicitly replace an existing config / 明确替换已有配置")
 		f.StringVar(&dataDir, "data-dir", "", "Account db_storage / 账号 db_storage")
 		f.StringVar(&decryptedDir, "decrypted-dir", "", "Existing SQLite tree / 已解密目录")
 		f.StringVar(&keyFile, "key-file", "", "Local key JSON / 本地密钥 JSON")
@@ -95,6 +105,8 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 	case "sessions":
 		f.StringVar(&keyword, "keyword", "", "Name keyword / 名称关键词")
 	case "export":
+		f.BoolVar(&allSessions, "all-sessions", false, "Export all local chats as one batch / 批量导出本机全部会话")
+		f.BoolVar(&allSessions, "all", false, "Alias of --all-sessions / 批量导出别名")
 		f.StringVar(&session, "session", "", "Session id or unique name / 会话 ID 或唯一名称")
 		f.StringVar(&months, "months", "", "Comma-separated YYYY-MM / 逗号分隔的月份")
 		f.StringVar(&from, "from", "", "Inclusive date / 起始日期，包含")
@@ -103,9 +115,14 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 	case "decrypt":
 		f.StringVar(&dir, "out", "", "New persistent plaintext directory / 新建明文输出目录")
 	case "key-capture":
-		f.IntVar(&captureTimeout, "timeout", 180, "Capture seconds, maximum 600 / 采集秒数，最多 600")
+		f.IntVar(&captureTimeout, "timeout", 300, "Capture seconds, maximum 600 / 采集秒数，最多 600")
 		f.StringVar(&captureMode, "mode", "auto", "auto or read_only / 即时捕获或只读轮询")
-	case "status", "serve":
+		f.StringVar(&progressMode, "progress", "human", "human or json / 人类可读进度或 JSON")
+	case "status":
+		f.BoolVar(&inspect, "inspect", false, "Validate snapshot to identify account and count history / 核验快照以识别账号并统计历史")
+	case "accounts":
+		f.StringVar(&accountsRoot, "root", "", "Optional xwechat_files parent / 可选的 xwechat_files 目录")
+	case "serve", "whoami", "key-list":
 	default:
 		return fault.New("UNKNOWN_COMMAND", "未知命令 / Unknown command", "Run wxmori --help.")
 	}
@@ -130,7 +147,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 		if dataDir == "" && decryptedDir == "" {
 			candidates := config.Discover()
 			if len(candidates) != 1 {
-				return printJSON(map[string]any{"configured": false, "accounts": candidates, "next_step": "Choose one: wxmori init --data-dir PATH. Or use --decrypted-dir PATH. / 请选择一个账号。"})
+				return printJSON(map[string]any{"configured": false, "accounts": config.Accounts("", "", *path), "next_step": "Use accounts to compare local file activity; directory ids may differ from custom WeChat ids. Choose init --data-dir PATH. / 用 accounts 比较文件活动，目录名可能不同于自定义微信号，请明确选择数据源。"})
 			}
 			dataDir = candidates[0]
 		}
@@ -159,7 +176,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 		if p == "" {
 			p = config.DefaultPath()
 		}
-		if err := config.Save(p, c); err != nil {
+		if err := config.SaveWithOptions(p, c, force); err != nil {
 			return err
 		}
 		return printJSON(map[string]any{"configured": true, "config": abs(p), "next_step": "Run wxmori status, then wxmori serve. / 检查状态后启动 MCP。"})
@@ -167,11 +184,21 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 	c, loadErr := config.Load(*path)
 	app := service.New(c, loadErr)
 	defer app.Close()
+	if command == "accounts" {
+		return printJSON(map[string]any{"accounts": config.Accounts(c.DataDir, accountsRoot, c.Path), "identity_policy": "Directory ids can differ from custom WeChat ids; last_file_change_at is not proof of login or sync. / 目录标识可能不同于自定义微信号；文件时间不证明登录或同步。"})
+	}
+	if command == "key-list" {
+		v, err := app.KeyList(ctx)
+		if err != nil {
+			return err
+		}
+		return printJSON(v)
+	}
 	if command == "serve" {
 		return mcpserver.Serve(ctx, app)
 	}
-	if command == "status" {
-		v, err := app.Status(ctx)
+	if command == "status" || command == "whoami" {
+		v, err := app.StatusWithOptions(ctx, service.StatusArgs{Inspect: inspect || command == "whoami"})
 		if err != nil {
 			return err
 		}
@@ -182,40 +209,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 	}
 	switch command {
 	case "key-capture":
-		v, err := app.Capture(ctx, service.CaptureArgs{Action: "start", TimeoutSeconds: captureTimeout, Mode: captureMode})
-		if err != nil {
-			return err
-		}
-		if err = printJSON(v); err != nil {
-			return err
-		}
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				v, err = app.Capture(context.Background(), service.CaptureArgs{Action: "stop"})
-				if err != nil {
-					return err
-				}
-				return printJSON(v)
-			case <-ticker.C:
-				v, err = app.Capture(ctx, service.CaptureArgs{Action: "status"})
-				if err != nil {
-					return err
-				}
-				if err = printJSON(v); err != nil {
-					return err
-				}
-				status := v.(keycapture.Status)
-				if !status.Running {
-					if status.State != "completed" {
-						return fault.New("CAPTURE_INCOMPLETE", "采集未完成 / Capture incomplete", status.Hint)
-					}
-					return nil
-				}
-			}
-		}
+		return runCapture(ctx, app, out, errOut, captureTimeout, captureMode, progressMode)
 	case "sessions":
 		v, err := app.Sessions(ctx, service.ListArgs{Keyword: keyword})
 		if err != nil {
@@ -223,6 +217,9 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 		}
 		return printJSON(v)
 	case "export":
+		if allSessions && session != "" {
+			return fault.New("CONFLICTING_SESSIONS", "会话参数冲突 / Conflicting session options", "Use --session OR --all-sessions, not both.")
+		}
 		var list []string
 		if months != "" {
 			list = strings.Split(months, ",")
@@ -230,7 +227,13 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 				list[i] = strings.TrimSpace(list[i])
 			}
 		}
-		v, err := app.Export(ctx, service.ExportArgs{SessionID: session, Months: list, From: from, To: to, Format: format})
+		var v any
+		var err error
+		if allSessions {
+			v, err = app.ExportAll(ctx, service.BatchExportArgs{Months: list, From: from, To: to, Format: format})
+		} else {
+			v, err = app.Export(ctx, service.ExportArgs{SessionID: session, Months: list, From: from, To: to, Format: format})
+		}
 		if err != nil {
 			return err
 		}

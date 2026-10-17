@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -174,27 +175,72 @@ func (c Config) MasterKey() ([]byte, error) {
 }
 
 func Save(path string, c Config) error {
+	return SaveWithOptions(path, c, false)
+}
+
+// SaveWithOptions never reads databases. Replacement is explicit and atomic.
+func SaveWithOptions(path string, c Config, replace bool) error {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return err
 	}
 	if err = os.MkdirAll(filepath.Dir(abs), 0700); err != nil {
-		return err
+		return configIO("create configuration directory", abs, err)
 	}
 	b, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return err
 	}
+	if replace {
+		f, e := os.CreateTemp(filepath.Dir(abs), ".wxmori-config-")
+		if e != nil {
+			return configIO("create configuration", abs, e)
+		}
+		defer os.Remove(f.Name())
+		if e = f.Chmod(0600); e == nil {
+			_, e = f.Write(append(b, '\n'))
+		}
+		if e == nil {
+			e = f.Sync()
+		}
+		closeErr := f.Close()
+		if e == nil {
+			e = closeErr
+		}
+		if e == nil {
+			e = os.Rename(f.Name(), abs)
+		}
+		if e != nil {
+			return configIO("replace configuration", abs, e)
+		}
+		return nil
+	}
 	f, err := os.OpenFile(abs, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		return err
+		if errors.Is(err, os.ErrExist) {
+			return fault.New("CONFIG_EXISTS", "配置文件已存在 / Configuration already exists", fmt.Sprintf("Config %q already exists. Use --config NEW_PATH before init, or init --force to explicitly replace its source selection. / 请另选配置路径，或用 init --force 明确替换配置。", abs))
+		}
+		return configIO("create configuration", abs, err)
 	}
 	_, writeErr := f.Write(append(b, '\n'))
 	closeErr := f.Close()
 	if writeErr != nil {
-		return writeErr
+		_ = os.Remove(abs)
+		return configIO("write configuration", abs, writeErr)
 	}
-	return closeErr
+	if closeErr != nil {
+		return configIO("close configuration", abs, closeErr)
+	}
+	return nil
+}
+
+func configIO(operation, path string, err error) error {
+	cause := err
+	var p *os.PathError
+	if errors.As(err, &p) {
+		cause = p.Err
+	}
+	return fault.New("CONFIG_WRITE_FAILED", "无法写入配置 / Could not write configuration", fmt.Sprintf("Cannot %s %q: %v. / 请按此文件及系统原因检查配置写入。", operation, path, cause))
 }
 
 func Discover() []string {

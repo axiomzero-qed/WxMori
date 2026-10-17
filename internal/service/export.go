@@ -26,21 +26,35 @@ type ExportFile struct {
 }
 
 func (a *App) Export(ctx context.Context, arg ExportArgs) (any, error) {
-	if arg.Format == "" {
-		arg.Format = "txt"
-	}
-	if arg.Format != "txt" && arg.Format != "jsonl" {
-		return nil, fault.New("INVALID_FORMAT", "导出格式无效 / Invalid export format", "Use txt or jsonl.")
-	}
-	if len(arg.Months) > 120 {
-		return nil, fault.New("TOO_MANY_MONTHS", "月份过多 / Too many months", "Request at most 120 months per call.")
-	}
-	if len(arg.Months) > 0 && (arg.From != "" || arg.To != "") {
-		return nil, fault.New("CONFLICTING_DATES", "日期参数冲突 / Conflicting date options", "Use months OR from/to, not both.")
+	if err := validateExportShape(&arg); err != nil {
+		return nil, err
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err := a.ensure(ctx); err != nil {
+		return nil, err
+	}
+	return a.exportOneLocked(ctx, arg, a.Config.OutputDir)
+}
+
+func validateExportShape(arg *ExportArgs) error {
+	if arg.Format == "" {
+		arg.Format = "txt"
+	}
+	if arg.Format != "txt" && arg.Format != "jsonl" {
+		return fault.New("INVALID_FORMAT", "导出格式无效 / Invalid export format", "Use txt or jsonl.")
+	}
+	if len(arg.Months) > 120 {
+		return fault.New("TOO_MANY_MONTHS", "月份过多 / Too many months", "Request at most 120 months per call.")
+	}
+	if len(arg.Months) > 0 && (arg.From != "" || arg.To != "") {
+		return fault.New("CONFLICTING_DATES", "日期参数冲突 / Conflicting date options", "Use months OR from/to, not both.")
+	}
+	return nil
+}
+
+func (a *App) exportOneLocked(ctx context.Context, arg ExportArgs, outputDir string) (any, error) {
+	if err := validateExportShape(&arg); err != nil {
 		return nil, err
 	}
 	loc, _ := a.Config.Location()
@@ -61,10 +75,10 @@ func (a *App) Export(ctx context.Context, arg ExportArgs) (any, error) {
 		}
 		months[m] = true
 	}
-	if err = os.MkdirAll(a.Config.OutputDir, 0700); err != nil {
+	if err = os.MkdirAll(outputDir, 0700); err != nil {
 		return nil, err
 	}
-	stage, err := os.MkdirTemp(a.Config.OutputDir, ".wxmori-staging-")
+	stage, err := os.MkdirTemp(outputDir, ".wxmori-staging-")
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +187,7 @@ func (a *App) Export(ctx context.Context, arg ExportArgs) (any, error) {
 	out["empty_months"] = empty
 	if len(result) > 0 {
 		base := "export-" + time.Now().UTC().Format("20060102T150405Z") + "-" + strings.TrimPrefix(filepath.Base(stage), ".wxmori-staging-")
-		dest := filepath.Join(a.Config.OutputDir, base)
+		dest := filepath.Join(outputDir, base)
 		if err = os.Rename(stage, dest); err != nil {
 			return nil, err
 		}

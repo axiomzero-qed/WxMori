@@ -19,11 +19,13 @@ import (
 )
 
 type Store struct {
-	DB          *sql.DB
-	Dir         string
-	Fingerprint string
-	CreatedAt   string
-	Warnings    map[string]int
+	DB              *sql.DB
+	Dir             string
+	Fingerprint     string
+	CreatedAt       string
+	Warnings        map[string]int
+	IdentitySummary Identity
+	HistorySummary  History
 }
 type Contact struct {
 	ID          string `json:"id"`
@@ -120,7 +122,7 @@ func Build(ctx context.Context, c config.Config) (s *Store, err error) {
 		return nil, err
 	}
 	_, err = s.DB.ExecContext(ctx, `PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF;
-CREATE TABLE contacts(id TEXT PRIMARY KEY,name TEXT NOT NULL);
+CREATE TABLE contacts(id TEXT PRIMARY KEY,name TEXT NOT NULL,nickname TEXT NOT NULL,alias TEXT NOT NULL);
 CREATE TABLE sessions(id TEXT PRIMARY KEY,name TEXT NOT NULL,type TEXT NOT NULL);
 CREATE TABLE messages(session TEXT NOT NULL,uid TEXT NOT NULL,ts INTEGER NOT NULL,seq INTEGER NOT NULL,sender_id TEXT NOT NULL,sender TEXT NOT NULL,type TEXT NOT NULL,text TEXT NOT NULL,server_id TEXT NOT NULL,PRIMARY KEY(session,uid));
 CREATE INDEX message_time ON messages(session,ts,seq,uid);`)
@@ -156,6 +158,14 @@ CREATE INDEX message_time ON messages(session,ts,seq,uid);`)
 				return nil, err
 			}
 		}
+	}
+	s.HistorySummary, err = s.History(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s.IdentitySummary, err = s.Identity(ctx, config.DescribeAccount(c.Source(), c.Path))
+	if err != nil {
+		return nil, err
 	}
 	success = true
 	return s, nil
@@ -203,7 +213,7 @@ func (s *Store) importContacts(ctx context.Context, path string, names map[strin
 			}
 		}
 		names[id] = name
-		if _, err = tx.ExecContext(ctx, "INSERT OR REPLACE INTO contacts VALUES(?,?)", id, name); err != nil {
+		if _, err = tx.ExecContext(ctx, "INSERT OR REPLACE INTO contacts VALUES(?,?,?,?)", id, name, nick, alias); err != nil {
 			return err
 		}
 	}

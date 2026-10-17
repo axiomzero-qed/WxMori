@@ -97,10 +97,15 @@ func (m *Manager) watchLogin(ctx context.Context, processes []*process, keys map
 		defer probe.Clear()
 		// A bounded cache lets early login events be checked once their database
 		// first pages exist. It is never written or returned to the model.
-		candidates := map[[32]byte]bool{}
-		defer clear(candidates)
+		candidates := candidateCache{}
+		defer candidates.clear()
+		otherAccounts := mismatchProbe{}
+		defer otherAccounts.Clear()
+		nextAlternatives := time.Time{}
+		watchStarted := time.Now()
 		var saved [32]byte
 		lastTargets := ""
+		var previousPages [32]byte
 		stableSince := time.Now()
 		lastRefresh := time.Time{}
 		var operationErr error
@@ -128,9 +133,12 @@ func (m *Manager) watchLogin(ctx context.Context, processes []*process, keys map
 				stableSince = time.Now()
 				clear(probe.Keys)
 			}
-			clear(probe.seen)
-			for key := range candidates {
-				probe.Verify(key, "login_key_setup", nil)
+			if pages := pageHash(ts); pages != previousPages {
+				previousPages = pages
+				clear(probe.seen)
+				for _, key := range candidates.values[:candidates.count] {
+					probe.Verify(key, "login_key_setup", nil)
+				}
 			}
 			for salt, key := range probe.Keys {
 				keys[salt] = key
@@ -141,6 +149,23 @@ func (m *Manager) watchLogin(ctx context.Context, processes []*process, keys map
 			m.mu.Lock()
 			m.status.Candidates = probe.Candidates
 			m.mu.Unlock()
+			verified := validKeys(ts, keys)
+			if verified == 0 && time.Now().After(nextAlternatives) {
+				otherAccounts.reload(m.c)
+				for _, key := range candidates.values[:candidates.count] {
+					otherAccounts.observe(key)
+				}
+				nextAlternatives = time.Now().Add(5 * time.Second)
+			}
+			m.mu.Lock()
+			m.status.ObservedAccounts = otherAccounts.matches()
+			m.mu.Unlock()
+			if e := otherAccounts.check(time.Now(), verified); e != nil {
+				return e
+			}
+			if verified == 0 && time.Since(watchStarted) > 30*time.Second {
+				m.setState("watching_login", "No matching database key yet. After ready_for_login=true, re-login locally and verify the selected account directory. AES events alone do not prove a login or an account mismatch. / 尚未取得匹配的数据库密钥；就绪后请亲自重新登录，并核对所选账号目录。AES 事件本身不能证明登录或账号不匹配。")
+			}
 			hasContact, hasMessage := false, false
 			for _, t := range ts {
 				if filepath.Base(t.Name) == "contact.db" {
@@ -163,19 +188,26 @@ func (m *Manager) watchLogin(ctx context.Context, processes []*process, keys map
 			m.mu.Unlock()
 			m.setState("watching_login", "Login watcher is ready. Log out and log in locally yourself; WxMori temporarily watches key setup and detaches on completion or stop. / 登录捕获已就绪，请亲自退出登录并重新登录；完成或停止后会解除临时调试。")
 		}, func(key [32]byte) {
-			if len(candidates) < 1024 {
-				candidates[key] = true
+			m.mu.Lock()
+			m.status.KeySetupEvents++
+			m.status.BytesRead += 32
+			m.mu.Unlock()
+			if !candidates.add(key) {
+				return
 			}
-			probe.Verify(key, "login_key_setup", nil)
+			matched := probe.Verify(key, "login_key_setup", nil)
 			for salt, key := range probe.Keys {
 				keys[salt] = key
 			}
-			if e := m.publish(probe.Targets, keys, &saved); e != nil {
-				operationErr = e
+			if matched {
+				if e := m.publish(probe.Targets, keys, &saved); e != nil {
+					operationErr = e
+				}
+			} else if len(probe.Keys) == 0 {
+				otherAccounts.observe(key)
 			}
 			m.mu.Lock()
 			m.status.Candidates = probe.Candidates
-			m.status.BytesRead += 32
 			m.mu.Unlock()
 		}, refresh)
 		if errors.Is(err, captureComplete) {
