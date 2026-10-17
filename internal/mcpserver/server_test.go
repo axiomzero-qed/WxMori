@@ -99,6 +99,7 @@ func TestCaptureToolProtocolWithSyntheticSource(t *testing.T) {
 	call(map[string]any{}, "INVALID_ARGUMENTS")
 	call(map[string]any{"action": "other"}, "INVALID_ARGUMENTS")
 	call(map[string]any{"action": "start", "timeout_seconds": "180"}, "INVALID_ARGUMENTS")
+	call(map[string]any{"action": "start", "mode": "unknown"}, "INVALID_ARGUMENTS")
 	call(map[string]any{"action": "start", "timeout_seconds": 601}, "INVALID_CAPTURE_TIMEOUT")
 	call(map[string]any{"action": "start", "password": "never-send-secrets"}, "INVALID_ARGUMENTS")
 	code := "CAPTURE_UNSUPPORTED"

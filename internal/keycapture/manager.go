@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -24,6 +25,7 @@ import (
 type Status struct {
 	Supported         bool         `json:"supported"`
 	Running           bool         `json:"running"`
+	ReadyForLogin     bool         `json:"ready_for_login"`
 	State             string       `json:"state"`
 	Method            string       `json:"method"`
 	RequiredDatabases int          `json:"required_databases"`
@@ -46,6 +48,7 @@ type Manager struct {
 	cancel    context.CancelFunc
 	done      chan struct{}
 	enumerate func() ([]*process, int, error)
+	mode      string
 }
 
 func New(c config.Config) *Manager {
@@ -53,6 +56,9 @@ func New(c config.Config) *Manager {
 }
 func (m *Manager) Status() Status { m.mu.Lock(); defer m.mu.Unlock(); return m.status }
 func (m *Manager) Start(timeout time.Duration) (Status, error) {
+	return m.StartWithMode(timeout, "auto")
+}
+func (m *Manager) StartWithMode(timeout time.Duration, mode string) (Status, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !platformSupported() {
@@ -70,10 +76,14 @@ func (m *Manager) Start(timeout time.Duration) (Status, error) {
 	if timeout < time.Second || timeout > 10*time.Minute {
 		return m.status, fault.New("INVALID_CAPTURE_TIMEOUT", "采集时限无效 / Invalid capture timeout", "Use 1 to 600 seconds.")
 	}
+	if mode != "auto" && mode != "read_only" {
+		return m.status, fault.New("INVALID_CAPTURE_MODE", "采集模式无效 / Invalid capture mode", "Use auto (default) or read_only. Auto may temporarily attach the Windows debugger at a recognized key-setup routine.")
+	}
+	m.mode = mode
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	m.cancel = cancel
 	m.done = make(chan struct{})
-	m.status = Status{Supported: true, Running: true, State: "waiting_for_wechat", Method: "windows_readonly_memory", StartedAt: time.Now().UTC().Format(time.RFC3339), Hint: "Open WeChat and log in to the selected account yourself. Keep WxMori running. / 请打开微信并亲自登录所选账号，保持 WxMori 运行。"}
+	m.status = Status{Supported: true, Running: true, State: "waiting_for_wechat", Method: "windows_readonly_memory", StartedAt: time.Now().UTC().Format(time.RFC3339), Hint: "Open the WeChat client if necessary; wait for ready_for_login=true before asking the user to re-login locally. Keep WxMori running. / 请先打开微信客户端，等待 ready_for_login=true 后再请用户亲自重新登录，保持 WxMori 运行。"}
 	go m.run(ctx, m.done)
 	return m.status, nil
 }
@@ -93,6 +103,7 @@ func (m *Manager) Stop() Status {
 func (m *Manager) Close() { m.Stop() }
 
 var requiredName = regexp.MustCompile(`^message_[0-9]+\.db$`)
+var errLoginRestart = errors.New("WeChat process restarted")
 
 func targets(root string) ([]Target, string, error) {
 	var paths []string
@@ -207,6 +218,7 @@ func (m *Manager) run(ctx context.Context, done chan struct{}) {
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		m.status.Running = false
+		m.status.ReadyForLogin = false
 		m.status.FinishedAt = time.Now().UTC().Format(time.RFC3339)
 		if m.status.State == "completed" || m.status.State == "failed" {
 			return
@@ -294,6 +306,34 @@ func (m *Manager) run(ctx context.Context, done chan struct{}) {
 					m.setState("waiting_for_wechat", "Open the desktop WeChat client and log in yourself. / 请打开桌面微信并亲自登录。")
 				}
 			}
+			if m.mode != "read_only" {
+				handled, watchErr := m.watchLogin(ctx, processes, keys)
+				if handled {
+					for _, p := range processes {
+						p.close()
+					}
+					if errors.Is(watchErr, errLoginRestart) {
+						m.mu.Lock()
+						m.status.ReadyForLogin = false
+						m.mu.Unlock()
+						m.setState("waiting_for_wechat", "WeChat restarted; waiting to re-arm capture on its new process. / 微信进程已重启，正在等待为新进程准备捕获。")
+						select {
+						case <-ctx.Done():
+							return
+						case <-time.After(500 * time.Millisecond):
+							continue
+						}
+					}
+					if watchErr != nil && ctx.Err() == nil {
+						m.fail(watchErr)
+					}
+					return
+				}
+			}
+			m.mu.Lock()
+			m.status.ReadyForLogin = len(processes) > 0
+			m.status.Method = "windows_readonly_memory"
+			m.mu.Unlock()
 			for i, p := range processes {
 				if ctx.Err() != nil {
 					for _, rest := range processes[i:] {

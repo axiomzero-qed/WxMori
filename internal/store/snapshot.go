@@ -147,6 +147,23 @@ func copyFile(src, dst string) (err error) {
 
 // Snapshot copies first. It never opens the original databases through SQLite.
 func Snapshot(ctx context.Context, c config.Config, all bool) (dir, fingerprint string, err error) {
+	return snapshot(ctx, c, all, &SnapshotReport{})
+}
+
+type SnapshotReport struct {
+	EncryptedWALFiles int    `json:"encrypted_wal_files"`
+	CommittedFrames   uint64 `json:"committed_frames"`
+	UncommittedFrames uint64 `json:"uncommitted_frames_excluded"`
+	StaleTails        int    `json:"stale_tails_excluded"`
+}
+
+func SnapshotWithReport(ctx context.Context, c config.Config, all bool) (string, string, SnapshotReport, error) {
+	var report SnapshotReport
+	dir, fp, err := snapshot(ctx, c, all, &report)
+	return dir, fp, report, err
+}
+
+func snapshot(ctx context.Context, c config.Config, all bool, report *SnapshotReport) (dir, fingerprint string, err error) {
 	before, files, err := Fingerprint(c.Source(), all)
 	if err != nil {
 		return "", "", err
@@ -185,8 +202,9 @@ func Snapshot(ctx context.Context, c config.Config, all bool) (dir, fingerprint 
 			return "", "", err
 		}
 		if c.DataDir != "" {
+			hasWAL := false
 			if s, e := os.Stat(src + "-wal"); e == nil && s.Size() > 0 {
-				return "", "", fault.New("ENCRYPTED_WAL_UNSUPPORTED", "检测到加密 WAL / Encrypted WAL detected", "Close WeChat normally so it checkpoints its databases, then retry. Never delete or blindly merge a source WAL. This release cannot read encrypted WAL frames.")
+				hasWAL = true
 			} else if e != nil && !os.IsNotExist(e) {
 				return "", "", e
 			}
@@ -194,6 +212,12 @@ func Snapshot(ctx context.Context, c config.Config, all bool) (dir, fingerprint 
 			raw := dst + ".encrypted"
 			if err = copyFile(src, raw); err != nil {
 				return "", "", err
+			}
+			rawWAL := raw + "-wal"
+			if hasWAL {
+				if err = copyFile(src+"-wal", rawWAL); err != nil {
+					return "", "", err
+				}
 			}
 			var page [cryptodb.PageSize]byte
 			in, e := os.Open(raw)
@@ -210,8 +234,23 @@ func Snapshot(ctx context.Context, c config.Config, all bool) (dir, fingerprint 
 				return "", "", e
 			}
 			err = cryptodb.DecryptFileWithKey(ctx, raw, dst, enc)
+			if err == nil && hasWAL {
+				var wal cryptodb.WALReport
+				wal, err = cryptodb.ReplayWAL(ctx, rawWAL, dst, enc, page[:16])
+				if err == nil {
+					report.EncryptedWALFiles++
+					report.CommittedFrames += wal.CommittedFrames
+					report.UncommittedFrames += wal.UncommittedFrames
+					if wal.StaleTailBytes > 0 {
+						report.StaleTails++
+					}
+				}
+			}
 			clear(enc)
 			_ = os.Remove(raw)
+			if hasWAL {
+				_ = os.Remove(rawWAL)
+			}
 			if err != nil {
 				return "", "", err
 			}

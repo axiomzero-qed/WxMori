@@ -91,11 +91,23 @@ func tableNames(ctx context.Context, db *sql.DB) ([]string, error) {
 }
 
 func Build(ctx context.Context, c config.Config) (s *Store, err error) {
-	dir, fp, err := Snapshot(ctx, c, false)
+	dir, fp, report, err := SnapshotWithReport(ctx, c, false)
 	if err != nil {
 		return nil, err
 	}
 	s = &Store{Dir: dir, Fingerprint: fp, CreatedAt: time.Now().UTC().Format(time.RFC3339), Warnings: map[string]int{}}
+	if report.EncryptedWALFiles > 0 {
+		s.Warnings["encrypted_wal_files_validated"] = report.EncryptedWALFiles
+	}
+	if report.CommittedFrames > 0 {
+		s.Warnings["wal_committed_frames_applied"] = int(report.CommittedFrames)
+	}
+	if report.UncommittedFrames > 0 {
+		s.Warnings["wal_uncommitted_frames_excluded"] = int(report.UncommittedFrames)
+	}
+	if report.StaleTails > 0 {
+		s.Warnings["wal_previous_generation_tails_excluded"] = report.StaleTails
+	}
 	created := s
 	success := false
 	defer func() {

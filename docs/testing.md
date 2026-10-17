@@ -21,9 +21,9 @@
 
 **English:** Local validation used static copies of real main databases; no identities, keys, or bodies were committed. Every page in 30 databases (1,112,178,688 bytes) passed HMAC authentication. All 12 chat/contact databases used by CLI/MCP passed `PRAGMA integrity_check`, and 685 sessions were parsed. Auxiliary full-text indexes are outside this release; custom tokenizers may prevent generic SQLite validation. Unresolved senders produce warnings; nickname resolution is not guaranteed for every sender.
 
-**中文：** 测试副本明确不含源加密 WAL，属于静态主库样本，不是微信最新记录。实际输入遇到非空加密 WAL 仍会中止，程序不会为获得通过结果而静默丢弃 WAL。
+**中文：** 上述已发布版本测试副本明确不含源加密 WAL，属于静态主库样本，不是微信最新记录。后续开发版本增加加密 WAL 校验和私有副本回放；相关自动化检查及当前单账号真实数据的读取与导出验收均已通过。该真实样本的 12 个 WAL 文件各有一个旧代次尾部被排除，当前代次提交帧为 0；提交帧回放仍只有合成测试覆盖。程序不得静默丢弃 WAL 帧。
 
-**English:** These fixtures explicitly exclude source encrypted WAL and represent static main-database samples, not the latest WeChat history. Real inputs with non-empty encrypted WAL still stop; the program does not silently discard it to obtain a passing result.
+**English:** The published-version fixtures explicitly exclude source encrypted WAL and represent static main-database samples, not the latest WeChat history. Later development added encrypted-WAL validation and private-copy replay; its automated checks and read/export acceptance on the current single-account sample have passed. Each of that sample's 12 WAL files had one excluded stale-generation tail, and there were zero current-generation committed frames; committed-frame replay therefore has synthetic coverage only. The program must not silently discard WAL frames.
 
 **中文：** GPT-6 Luna 直接使用交接材料明确指定的会话 ID，分别导出 TXT 和 JSONL，各 381 条；文件存在性、条数、UTF-8 与 SHA-256 均通过，235 条含换行的正文在 TXT 中完整保留。真实身份、路径和正文未进入公开报告。
 
@@ -31,29 +31,31 @@
 
 ## Working-branch development checks / 工作分支开发检查
 
-**中文：** 日期：2026-10-17；版本：`v0.2.0-dev`。以下是开发分支的自动化、CI 或合成数据检查，与上方已发布 `v0.1.0-alpha.1` 的记录分开。CI 已验证完整程序启动和独立 stdio MCP 冒烟流程；这些结果不代表真实微信登录捕获或新捕获工具的模型调用已通过。
+**中文：** 日期：2026-10-17；版本：`v0.2.0-alpha.1`。以下开发版自动化、CI 和真实样本记录与上方 alpha1 历史分开。此前提交的三系统 CI 验证了完整程序启动和独立 stdio MCP 冒烟，但早于当前调试器捕获及 WAL 回放后端。当前源码本机测试与静态检查通过，当前发布 CI 仍待完成。Luna/Python stdio 单账号试验已完成捕获、DPAPI 重载、12 库读取及 TXT/JSONL 导出。
 
-**English:** Date: 2026-10-17; version: `v0.2.0-dev`. These automated, CI, and synthetic-data checks are separate from the published `v0.1.0-alpha.1` record above. CI verified full executable startup and an independent stdio MCP smoke test; these results do not establish real-WeChat login capture or a model call for the new capture tool.
+**English:** Date: 2026-10-17; version: `v0.2.0-alpha.1`. These development automation, CI, and real-sample results are separate from the alpha1 history above. Earlier three-system CI verified full executable startup and an independent stdio MCP smoke test, but predates the current debugger capture and WAL-replay backends. Current-source local tests and static checks pass; release CI is still pending. A single-account Luna/Python stdio trial completed capture, DPAPI reload, reads of 12 databases, and TXT/JSONL exports.
 
 | Check / 检查 | Evidence / 证据 |
 | --- | --- |
-| Go regression and static checks / Go 回归与静态检查 | Working-branch `go test ./...` and `go vet ./...` passed locally on Windows. / 工作分支在 Windows 本机通过 `go test ./...` 和 `go vet ./...`。 |
+| Go regression and static checks / Go 回归与静态检查 | `go test ./...` and `go vet ./...` pass locally for `v0.2.0-alpha.1`. / `v0.2.0-alpha.1` 本机通过 `go test ./...` 和 `go vet ./...`。 |
 | Cross-platform CI and stdio / 跨平台 CI 与 stdio | Commit `1bb45bd87cff10b0b8604a6a04a2d225e9bb9043` passed on Windows, Linux, and macOS, including full executable startup and an independent Python stdio MCP smoke test with seven tools across four protocol versions. [Run](https://github.com/axiomzero-qed/WxMori/actions/runs/39025380150) / 提交 `1bb45bd87cff10b0b8604a6a04a2d225e9bb9043` 通过 Windows、Linux 和 macOS 检查，包括完整程序启动及独立 Python stdio MCP 冒烟测试（七个工具、四个协议版本）。[运行记录](https://github.com/axiomzero-qed/WxMori/actions/runs/39025380150) |
 | Capture MCP protocol / 捕获 MCP 协议 | `TestCaptureToolProtocolWithSyntheticSource` passed using an in-memory official SDK transport; this is not an independent stdio test or model trial. / 使用内存中的官方 SDK 传输通过；这不是独立 stdio 测试或模型试用。 |
-| Read-only capture / 只读捕获 | Windows synthetic child-process memory scan and HMAC validation passed. / Windows 合成子进程内存扫描和 HMAC 校验通过。 |
+| Capture backend / 捕获后端 | Windows synthetic child-process test passed for debugger arguments, child continuation/re-execution after detach, and repeated cycles without handle leaks. Separate read-only polling scan/HMAC validation also passed synthetically. / Windows 合成子进程测试验证调试器参数、分离后子进程继续运行并可再次执行，以及重复周期无句柄泄漏；只读轮询扫描与 HMAC 校验也通过合成测试。 |
+| Encrypted WAL / 加密 WAL | Pure-Go tests passed for both checksum byte orders, commit boundaries, uncommitted tails, stale generations, and corruption. Synthetic snapshot integration retained source hashes and validated the replay boundary. In actual capture, 12 WALs had stale-generation tails and zero current-generation committed frames, so committed-frame replay remains synthetic-only. / 纯 Go 测试覆盖两种校验和字节序、提交边界、未提交尾帧、旧代次和损坏并通过。合成快照集成测试验证了回放边界且源哈希不变。真实捕获中的 12 个 WAL 有旧代次尾帧、当前代次提交帧为 0，因此提交帧回放仍仅由合成测试覆盖。 |
 | Protected keyring / 受保护密钥环 | DPAPI `CurrentUser` tests passed. / DPAPI `CurrentUser` 测试通过。 |
-| Local executable startup / 本机程序启动 | Local startup failed with WinError 5. The 360 Realtime Protection log confirms it deleted `wxmori-keycapture.exe` after a malware detection; the same log records an earlier block of `diagnose.exe`. The detection is confirmed, but whether it is a false positive is not established. / 本机启动失败并返回 WinError 5。360 实时防护记录确认其在报毒后删除了 `wxmori-keycapture.exe`，同一记录还显示此前拦截过 `diagnose.exe`。拦截事实已确认，但是否误报尚无结论。 |
-| Real-account capture / 真实账号捕获 | The user selected their usual current account, but the real login trial is pending. A preliminary post-login scan yielded zero verified keys for 12 required databases. / 用户已选择平时使用的当前账号，但真实登录试验尚未进行。一次初步登录后扫描对 12 个所需数据库均未得到已验证密钥。 |
+| Security-software handling / 安全软件处理 | 360 history confirmed deletion of an earlier executable build. A later same-name rebuild started after 360 was exited; neither fact establishes the earlier detection was false. For blocks, submit the individual file to the vendor for review; do not recommend disabling protection. / 360 记录确认曾删除早期程序构建；退出 360 后重建同名程序可启动，但两者均不能证明此前检测为误报。若被拦截，建议按厂商流程逐文件提交审查，不建议关闭防护。 |
+| Read-only login trial / 只读登录试验 | After re-login, polling found 0 verified keys for 12 required databases (5 processes, 0 access-denied errors, 45 passes, about 16.57 GB read, 86,791 candidates). It stopped cleanly; no export was run. This was the read-only method, not the new debugger backend. / 重新登录后轮询对 12 个所需数据库找到 0 个已验证密钥（5 个进程、0 次拒绝访问、45 轮、读取约 16.57 GB、86,791 个候选）。任务正常停止，未执行导出。此结果来自只读方式，不是新的调试器后端。 |
+| Luna capture and export / Luna 捕获与导出 | On one Weixin 4.1.15.56 account via Luna's Python stdio host: capture verified 12/12 keys; a fresh MCP process loaded them from DPAPI with `master_key_available=false`; status was ready; exact user-specified session lookup returned one result. TXT and JSONL exports each had 381 records and matching hashes; UTF-8 passed, TXT had 381 headers and preserved all 235 multiline bodies, and JSONL had 381 valid rows. No identities, paths, or bodies are reported here. / 通过 Luna Python stdio 宿主对一个 Weixin 4.1.15.56 账号实测：捕获验证 12/12 密钥；新 MCP 进程在 `master_key_available=false` 时从 DPAPI 加载密钥，状态 ready，按用户指定会话精确查询返回一个结果。TXT 与 JSONL 各 381 条且摘要匹配；UTF-8 通过，TXT 有 381 个标题并保留全部 235 条多行正文，JSONL 有 381 行有效记录。此处不公开身份、路径或正文。 |
 
-**中文：** 当前七个 MCP 工具中的 `capture_key` 仍为实验性功能。独立完整程序 stdio 测试已在 CI 通过，但本机启动仍被 360 拦截；新捕获工具的模型实际调用和登录期间真实捕获仍待验证。合成协议测试不得替代后两项实测。
+**中文：** `capture_key` 仍为实验性功能。当前真实样本的 12 库读取和导出已通过；其 WAL 当前代次提交帧为 0，已提交帧回放仍只由合成测试覆盖。当前发布 CI 待完成。此前只读轮询试验曾为 0/12。
 
-**English:** `capture_key`, one of the current seven MCP tools, remains experimental. The independent full-program stdio test passed in CI, while local startup remains blocked by 360. An actual model call for the new capture tool and real capture during login remain pending; the synthetic protocol test does not replace either trial.
+**English:** `capture_key` remains experimental. Reads and exports passed on the current real sample; its WALs had zero current-generation committed frames, so committed-frame replay is covered by synthetic tests only. Current release CI is pending. The earlier read-only polling trial was 0/12.
 
 ## Remaining coverage / 待覆盖范围
 
-**中文：** 商业宿主（如 Claude Desktop、Cursor）和其他模型尚未实测。跨系统 CI 与发布构建状态以 GitHub Actions 为准，本机环境为 Windows。已发布 alpha1 未实现自动取密钥；开发分支实验采集尚未通过真实登录验证。加密 WAL、实时监听、附件原文件及多账号合并均未实现。
+**中文：** 自动捕获实测仅覆盖一个 Windows AMD64/Weixin 4.1.15.56 单账号及 Luna Python stdio 宿主；其他版本、模型和商业宿主未实测，当前发布 CI 待完成。已发布 alpha1 未实现自动取密钥且不支持非空加密 WAL。实时监听、附件原文件及多账号合并均未实现。
 
-**English:** Commercial hosts such as Claude Desktop and Cursor, and other models, have not been tested. GitHub Actions records cross-platform CI and release builds; local execution used Windows. Published alpha1 has no automatic key capture; experimental development capture has not yet been validated with a real login. Encrypted WAL, live monitoring, attachment binaries, and multi-account merging are not implemented.
+**English:** Automatic capture was tested only on one Windows AMD64/Weixin 4.1.15.56 single-account sample through Luna's Python stdio host; other versions, models, and commercial hosts remain untested, and release CI is pending. Published alpha1 has no automatic key capture and does not support non-empty encrypted WAL. Live monitoring, attachment binaries, and multi-account merging are not implemented.
 
 **中文：** 协议参考 [MCP tools](https://modelcontextprotocol.io/specification/2025-06-18/server/tools) 与 [stdio](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)，日志语义参考 [SQLite WAL](https://www.sqlite.org/wal.html)。
 

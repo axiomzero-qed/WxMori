@@ -82,6 +82,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 	f.SetOutput(errOut)
 	var dir, dataDir, decryptedDir, keyFile, outputDir, timezone, keyword, session, months, from, to, format string
 	var captureTimeout int
+	var captureMode string
 	switch command {
 	case "init":
 		f.StringVar(&dataDir, "data-dir", "", "Account db_storage / 账号 db_storage")
@@ -103,6 +104,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 		f.StringVar(&dir, "out", "", "New persistent plaintext directory / 新建明文输出目录")
 	case "key-capture":
 		f.IntVar(&captureTimeout, "timeout", 180, "Capture seconds, maximum 600 / 采集秒数，最多 600")
+		f.StringVar(&captureMode, "mode", "auto", "auto or read_only / 即时捕获或只读轮询")
 	case "status", "serve":
 	default:
 		return fault.New("UNKNOWN_COMMAND", "未知命令 / Unknown command", "Run wxmori --help.")
@@ -180,7 +182,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 	}
 	switch command {
 	case "key-capture":
-		v, err := app.Capture(ctx, service.CaptureArgs{Action: "start", TimeoutSeconds: captureTimeout})
+		v, err := app.Capture(ctx, service.CaptureArgs{Action: "start", TimeoutSeconds: captureTimeout, Mode: captureMode})
 		if err != nil {
 			return err
 		}
@@ -244,7 +246,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 		if _, err = os.Stat(dest); !os.IsNotExist(err) {
 			return fault.New("OUTPUT_EXISTS", "输出目录已存在 / Output directory already exists", "Choose a new destination; existing data is never overwritten.")
 		}
-		snap, _, err := store.Snapshot(ctx, c, false)
+		snap, _, wal, err := store.SnapshotWithReport(ctx, c, false)
 		if err != nil {
 			return err
 		}
@@ -255,7 +257,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 		if err = os.Rename(snap, dest); err != nil {
 			return fault.New("DESTINATION_MOVE_FAILED", "无法发布明文副本 / Could not publish plaintext copy", "Choose an output on the same drive as the system temporary directory. The incomplete copy was removed.")
 		}
-		return printJSON(map[string]any{"directory": dest, "integrity_check": "ok", "persistent_plaintext": true})
+		return printJSON(map[string]any{"directory": dest, "integrity_check": "ok", "persistent_plaintext": true, "wal": wal})
 	}
 	return nil
 }

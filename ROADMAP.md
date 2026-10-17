@@ -1,15 +1,15 @@
 # Roadmap / 路线图
 
-## Available in alpha / Alpha 已实现
+## Available in the current candidate / 当前候选版已实现
 
 - Local master-key input, per-page authentication, verified chat SQLite snapshots. / 本地主密钥输入、逐页校验、聊天库完整性检查与快照。
-- Six stdio MCP tools, CLI, monthly TXT/JSONL exports, synthetic demo. / 六个 stdio MCP 工具、CLI、月度 TXT/JSONL 和合成演示。
+- Seven stdio MCP tools, including experimental Windows key capture, CLI, monthly TXT/JSONL exports, synthetic demo. / 七个 stdio MCP 工具（含实验性 Windows 取密钥）、CLI、月度 TXT/JSONL 和合成演示。
 - Flat schemas, bounded previews, stable errors and candidate selection for weaker models. / 扁平参数、有界预览、稳定错误与候选选择，便于较弱模型调用。
 
 ## Next / 下一阶段
 
-1. Working branch: experimental independent Windows 64-bit login-time, read-only key capture; real-WeChat login trial and versioned fixtures are pending. No WeFlow DLL or code. This is not part of published `v0.1.0-alpha.1`. / 工作分支：实验性独立 Windows 64 位登录时只读密钥捕获；真实微信登录试验和版本样本仍待完成。不使用 WeFlow DLL 或代码，且不属于已发布的 `v0.1.0-alpha.1`。
-2. Authenticated encrypted WAL snapshots with committed-frame and source-race tests. / 可校验的加密 WAL 快照及提交帧、并发源变化测试。
+1. Candidate `v0.2.0-alpha.1` adds independent experimental Windows 64-bit login-time capture. Default mode uses temporary debugger hardware breakpoints and briefly pauses threads while restoring debug registers on cleanup; no code patch or DLL injection. `read_only` selects polling. One Weixin 4.1.15.56 single-account trial captured and HMAC-verified 12/12 core database keys, then completed reads and exports with retained encrypted WALs. That sample had zero current-generation committed WAL frames, so committed-frame replay has synthetic coverage only. No WeFlow DLL or code is used; published `v0.1.0-alpha.1` remains manual-key-only. Release CI is pending. / 候选版 `v0.2.0-alpha.1` 新增独立的 Windows 64 位实验性登录时捕获。默认方式使用临时调试器硬件断点，短暂暂停线程并在清理时恢复调试寄存器；不修改代码或注入 DLL。`read_only` 选择轮询。一次 Weixin 4.1.15.56 单账号试验捕获并通过 HMAC 验证了 12/12 个核心数据库密钥，随后在保留加密 WAL 时完成读取和导出。该样本当前代次的 WAL 提交帧数为 0，因此提交帧回放目前只有合成测试覆盖。不使用 WeFlow DLL 或代码；已发布 `v0.1.0-alpha.1` 仍仅支持手动密钥。发布 CI 尚待完成。
+2. Broaden committed-frame and source-race coverage, and test additional WeChat versions, models, and hosts. / 扩展提交帧与源变化测试，并测试更多微信版本、模型和宿主。
 3. More WeChat versions, models and actual host integrations; publish the tested matrix. / 增加微信版本、模型与实际宿主测试，公布实测矩阵。
 4. Improve unresolved-sender diagnostics and incremental indexing before live monitoring. / 改善发送者未解析诊断与增量索引，再实现实时监听。
 

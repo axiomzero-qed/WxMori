@@ -25,8 +25,8 @@ This trial was not run inside Claude, Cursor, or another commercial host; it doe
 
 ## 静态副本调用 / Static-copy call
 
-使用 GPT-6 Luna，通过 Python `Client` 对 `private/verified-config.json` 指向的已校验静态 SQLite 副本进行真实子进程 stdio MCP 调用。`list_sessions` 对目标关键词返回 5 个候选；按要求不猜测目标会话，因此停止该分支，没有执行导出或生成文件。错误码：无。
-GPT-6 Luna made a real subprocess stdio MCP call through the Python `Client`, using the verified static SQLite copy selected by `private/verified-config.json`. `list_sessions` returned 5 candidates for the target keyword. The branch stopped without guessing, so no export was attempted and no files were generated. Error codes: none.
+使用 GPT-6 Luna，通过 Python `Client` 对本机已校验的静态 SQLite 副本进行真实子进程 stdio MCP 调用。`list_sessions` 对目标关键词返回 5 个候选；按要求不猜测目标会话，因此停止该分支，没有执行导出或生成文件。错误码：无。
+GPT-6 Luna made a real subprocess stdio MCP call through the Python `Client` using a locally verified static SQLite copy. `list_sessions` returned 5 candidates for the target keyword. The branch stopped without guessing, so no export was attempted and no files were generated. Error codes: none.
 
 这是一个本机静态数据样本，不代表实时数据，也不保证包含最新消息。
 This was one local static data sample; it does not represent live data or guarantee the latest messages.
@@ -46,3 +46,13 @@ Tool discovery, pagination fields, and error hints were enough to guide these st
 
 试用中没有发现仍需上报的产品 bug。初次 PowerShell 命令行传 JSON 参数时遇到本地引号转义问题，改用提供的 Python `Client` 进行同一真实 stdio MCP 调用后继续；这属于试验调用方式问题，不是工具行为。
 No product bug requiring escalation was found. The initial PowerShell command had a local JSON quoting issue; the same real stdio MCP calls continued through the provided Python `Client`. This was a test invocation issue, not tool behavior.
+
+## Experimental capture control / 实验性捕获控制
+
+**中文：** 此次实测运行时版本为 `v0.2.0-dev`（候选版本号仅在实测后更新）。Luna 使用 Python stdio MCP 宿主完成四个协议版本、七工具冒烟及实时捕获调用。一次 Weixin 4.1.15.56 单账号重新登录试验中，调试器捕获并通过 HMAC 验证 12/12 核心数据库密钥；微信完整退出后，新的 MCP 进程在 `master_key_available=false` 时从 DPAPI 密钥环加载 12 个密钥，状态 ready，按用户指定会话精确查询返回一个结果。12 个 WAL 文件各有旧代次尾帧被排除，当前代次提交帧为 0。TXT 和 JSONL 导出各 381 条且哈希匹配、UTF-8 有效；TXT 有 381 个时间戳标题，235 条多行正文全部保留，JSONL 有 381 行有效记录。真实快照的源文件大小/修改时间指纹保持稳定；源哈希仅在合成快照测试中验证未变。已提交帧回放仅由合成测试覆盖。调用前仍须轮询 `ready_for_login: true` 再请用户登录。
+
+**English:** The runtime tested was `v0.2.0-dev` (the candidate version string changed after the trial). Luna used a Python stdio MCP host for four-protocol/seven-tool smoke calls and live capture. In one Weixin 4.1.15.56 single-account re-login trial, debugger capture obtained HMAC-verified keys for all 12 core databases. After WeChat fully exited, a fresh MCP process loaded all 12 from DPAPI with `master_key_available=false`; status was ready, and exact lookup of the user-specified session returned one result. Each of the 12 WAL files had an excluded stale-generation tail; there were zero current-generation committed frames. TXT and JSONL exports each contained 381 records with matching hashes and valid UTF-8; TXT had 381 timestamp headers and preserved all 235 multiline bodies, while JSONL had 381 valid rows. Real-snapshot source size/mtime fingerprints remained stable. Unchanged source hashes were verified in synthetic snapshot tests only. Committed-frame replay is covered only by synthetic tests. Before a capture call, continue polling until `ready_for_login: true` before asking the user to log in.
+
+**中文：** 报告不记录账号身份、个人路径、密钥或转储。捕获和 WAL 回放仍是实验功能；这次单账号结果不证明其他微信版本、模型或宿主兼容，也不保证普遍可捕获。当前发布 CI 待完成。
+
+**English:** The report omits account identity, personal paths, keys, and dumps. Capture and WAL replay remain experimental; this single-account result does not establish compatibility with other WeChat versions, models, or hosts, or guarantee general capture reliability. Release CI is pending.
