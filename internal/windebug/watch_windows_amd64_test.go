@@ -46,6 +46,12 @@ func TestDebugSyntheticHelper(t *testing.T) {
 }
 
 func TestWatchCapturesOnlySyntheticChildAndDetaches(t *testing.T) {
+	// Reuse one debugger OS thread and keep unrelated scheduler workers out of
+	// this process-wide handle measurement. Watch still pins itself in normal use.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	procs := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(procs)
 	if unsafe.Sizeof(threadContext{}) != 1232 || unsafe.Offsetof(threadContext{}.Rip) != 248 || unsafe.Offsetof(threadContext{}.Rcx) != 128 || unsafe.Sizeof(debugEvent{}) != 176 {
 		t.Fatal("Windows SDK layout mismatch")
 	}
@@ -85,7 +91,10 @@ func TestWatchCapturesOnlySyntheticChildAndDetaches(t *testing.T) {
 	}
 	handleCount := func() uint32 {
 		var n uint32
-		if err := call(kernel.NewProc("GetProcessHandleCount"), uintptr(windows.CurrentProcess()), uintptr(unsafe.Pointer(&n))); err != nil {
+		// Convert the pointer directly in LazyProc.Call so the compiler keeps
+		// the destination alive and immovable for the Windows call.
+		r, _, err := kernel.NewProc("GetProcessHandleCount").Call(uintptr(windows.CurrentProcess()), uintptr(unsafe.Pointer(&n)))
+		if r == 0 {
 			t.Fatal(err)
 		}
 		return n
@@ -116,8 +125,9 @@ func TestWatchCapturesOnlySyntheticChildAndDetaches(t *testing.T) {
 	if err != nil || strings.TrimSpace(line) != "fired" {
 		t.Fatalf("child failed after detach: %q %v", line, err)
 	}
-	previous := handleCount()
-	for attempt := 0; attempt < 3; attempt++ {
+	baseline := handleCount()
+	for attempt := 0; attempt < 12; attempt++ {
+		threadsBefore, _ := runtime.ThreadCreateProfile(nil)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		err := Watch(ctx, uint32(cmd.Process.Pid), []uintptr{uintptr(address)}, func() { fmt.Fprintln(in, "fire") }, func([32]byte) { cancel() }, nil)
 		cancel()
@@ -129,9 +139,9 @@ func TestWatchCapturesOnlySyntheticChildAndDetaches(t *testing.T) {
 			t.Fatal("child failed after repeated detach")
 		}
 		after := handleCount()
-		if after > previous+2 {
-			t.Fatalf("repeat debugger leaked handles: before=%d after=%d", previous, after)
+		threadsAfter, _ := runtime.ThreadCreateProfile(nil)
+		if after > baseline {
+			t.Fatalf("repeat debugger retained handles: baseline=%d after=%d runtime_threads=%d->%d", baseline, after, threadsBefore, threadsAfter)
 		}
-		previous = after
 	}
 }
