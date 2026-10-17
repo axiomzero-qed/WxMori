@@ -53,12 +53,22 @@ No product bug requiring escalation was found. The initial PowerShell command ha
 
 **English:** The live trial used `v0.2.0-dev`, before the preview version string was set. Luna used a Python stdio MCP host for four-protocol/seven-tool smoke calls and live capture. In one Weixin 4.1.15.56 single-account re-login trial, debugger capture obtained HMAC-verified keys for all 12 core databases. After WeChat fully exited, a fresh MCP process loaded all 12 from DPAPI with `master_key_available=false`; status was ready, and exact lookup of the user-specified session returned one result. Each of the 12 WAL files had an excluded stale-generation tail; there were zero current-generation committed frames. TXT and JSONL exports each contained 381 records with matching hashes and valid UTF-8; TXT had 381 timestamp headers and preserved all 235 multiline bodies, while JSONL had 381 valid rows. Real-snapshot source size/mtime fingerprints remained stable. Unchanged source hashes were verified in synthetic snapshot tests only. Committed-frame replay is covered only by synthetic tests. Before a capture call, continue polling until `ready_for_login: true` before asking the user to log in.
 
-**中文：** 报告不记录账号身份、个人路径、密钥或转储。捕获和 WAL 回放仍是实验功能；这次单账号结果不证明其他微信版本、模型或宿主兼容，也不保证普遍可捕获。当前代码 CI 已通过；发布附件打包未在此验证。
+**中文：** 报告不记录账号身份、个人路径、密钥或转储。捕获和 WAL 回放仍是实验功能；这次单账号结果不证明其他微信版本、模型或宿主兼容，也不保证普遍可捕获。当前代码 CI 已通过；发布压缩包由发布工作流单独生成。
 
-**English:** The report omits account identity, personal paths, keys, and dumps. Capture and WAL replay remain experimental; this single-account result does not establish compatibility with other WeChat versions, models, or hosts, or guarantee general capture reliability. Code CI passed; release-asset packaging is not verified here.
+**English:** The report omits account identity, personal paths, keys, and dumps. Capture and WAL replay remain experimental; this single-account result does not establish compatibility with other WeChat versions, models, or hosts, or guarantee general capture reliability. Code CI passed; release archives are generated separately by the release workflow.
 
 ## Final preview-version smoke / 最终预览版冒烟
 
 **中文：** 最终版本号、CLI 参数和重启流程调整后，GPT-6 Luna 工作线程在 `v0.2.0-alpha.1` 上通过合成 MCP 冒烟。该冒烟不包含真实登录取密钥；上方真实捕获/导出实测仍使用先前 `v0.2.0-dev` 构建。
 
 **English:** After final version, CLI-argument, and restart refinements, a GPT-6 Luna worker passed a synthetic MCP smoke test on `v0.2.0-alpha.1`. This smoke did not include a real login capture; the live capture/export trial above still used the earlier `v0.2.0-dev` build.
+
+## Alpha.2 development MCP checks / Alpha.2 开发版 MCP 检查
+
+**中文：** 版本：`v0.2.0-alpha.2` 预览版。GPT-6 Luna 工作线程经独立 Python stdio MCP 宿主完成四个协议版本、九工具的合成冒烟；还在隔离合成配置中执行批量导出，验证清单、SHA-256 和 9 条 2026 年 9 月记录。此项不是真实聊天数据试验。
+
+**English:** Version: `v0.2.0-alpha.2` preview release. A GPT-6 Luna worker used an independent Python stdio MCP host for a synthetic smoke across four protocol versions and all nine tools. It also ran batch export in an isolated synthetic config and checked the manifest, SHA-256, and nine September 2026 records. This was not a real-chat-data trial.
+
+**中文：** 另一次真实本地 MCP 检查由 Luna/Codex Desktop 在 Windows 上通过 Python stdio 宿主调用协议 `2025-06-18`。使用已有配置且未设置 `WXMORI_MASTER_KEY`；未执行捕获、重新登录、调试器或导出。基础状态 ready；inspect 确认本人 contact 精确匹配，发现全局 2 个会话、5 条消息并报告 `SPARSE_LOCAL_HISTORY`；`list_sessions(limit=3)` 返回 2 个会话。已有密钥对 2/2 个数据库有效。两个 WAL 均通过校验并排除旧代次尾帧，当前代次提交帧为 0；本次不构成真实已提交帧回放测试。三系统 CI 已通过；alpha2 真实捕获/重新登录/导出及真实提交帧 WAL 回放仍未验证。
+
+**English:** A separate live local MCP check was made by Luna/Codex Desktop on Windows through a Python stdio host using protocol `2025-06-18`. It used an existing config with `WXMORI_MASTER_KEY` unset; no capture, re-login, debugger, or export was run. Basic status was ready. Inspect confirmed an exact self-contact match, found two global sessions and five messages, and reported `SPARSE_LOCAL_HISTORY`; `list_sessions(limit=3)` returned two sessions. Existing keys were valid for both databases (2/2). Both WALs validated and stale-generation tails were excluded; current-generation committed frames were zero, so this was not a real committed-frame replay test. Three-system CI passed; real alpha2 capture/re-login/export and real committed-WAL replay remain unverified.

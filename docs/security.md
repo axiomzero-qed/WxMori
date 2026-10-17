@@ -16,9 +16,15 @@
 
 **English:** Capture recognizes AES-256 key-schedule candidates, legacy raw-key text, and references to the selected database salt, then verifies per-database keys against a selected database page HMAC. Only verified keys are stored beside the config file at `.wxmori-keys/<account-path-hash>.json`, protected by Windows DPAPI `CurrentUser`; ordinarily only the same Windows user on the same computer can decrypt the file. The keyring is bound to the account directory and database salt; do not copy or mix it across accounts. Capture results, MCP output, logs, and dumps must not contain keys.
 
-**中文：** MCP 的 `capture_key` 使用已由 `init` 选择的 `data_dir`，以 `start`、`status`、`stop` 控制异步任务；默认超时 180 秒，最多 600 秒。开始成功不等于捕获成功。CLI 的 `key capture` 命令在前台运行，Ctrl+C 可停止。密钥也可继续通过本地 `key_file` 或 `WXMORI_MASTER_KEY` 提供；不要将其放入命令参数、MCP 参数、聊天或工单。错误信息不得包含密钥、消息正文或个人路径。
+## Alpha.2 diagnostics / Alpha.2 诊断
 
-**English:** MCP `capture_key` uses the `data_dir` already selected by `init` and controls an asynchronous job with `start`, `status`, and `stop`; the default timeout is 180 seconds, maximum 600. A successful start is not a successful capture. The CLI `key capture` command runs in the foreground and can be stopped with Ctrl+C. Keys can still be supplied locally through `key_file` or `WXMORI_MASTER_KEY`; never put them in command arguments, MCP arguments, chats, or tickets. Errors must not contain keys, message bodies, or personal paths.
+**中文：** alpha2 仅在另一个本地账号的两个核心数据库首页 HMAC 均通过、使用不同盐，且所选账号连续 10 秒没有有效匹配时，才报告 `KEY_ACCOUNT_MISMATCH` 并停止/分离；最多提供 8 个候选目录，不保存外部账号密钥或自动切换。未验证 AES 调度或 `key_setup_events` 事件本身都不足以证明账号错配或登录成功。账号目录元数据和本人身份均按本地敏感信息处理；`whoami` 无精确匹配时报告未知。
+
+**English:** Alpha2 reports `KEY_ACCOUNT_MISMATCH` and stops/detaches only after first-page HMACs validate for two core databases of another local account under distinct salts, while the selected account has no valid match for 10 seconds. It reports at most eight candidate directories, never saves a foreign account's keys, and never switches accounts automatically. An unverified AES schedule or a `key_setup_events` event alone proves neither account mismatch nor successful login. Treat account-directory metadata and identity as locally sensitive; `whoami` reports unknown without an exact match.
+
+**中文：** MCP 的 `capture_key` 使用已由 `init` 选择的 `data_dir`，以 `start`、`status`、`stop` 控制异步任务；alpha2 预览版默认超时 300 秒，最多 600 秒。开始成功不等于捕获成功。CLI 的 `key capture` 命令在前台运行，Ctrl+C 可停止。密钥也可继续通过本地 `key_file` 或 `WXMORI_MASTER_KEY` 提供；不要将其放入命令参数、MCP 参数、聊天或工单。错误信息不得包含密钥、消息正文或个人路径。
+
+**English:** MCP `capture_key` uses the `data_dir` already selected by `init` and controls an asynchronous job with `start`, `status`, and `stop`; the alpha2 preview default timeout is 300 seconds, maximum 600. A successful start is not a successful capture. The CLI `key capture` command runs in the foreground and can be stopped with Ctrl+C. Keys can still be supplied locally through `key_file` or `WXMORI_MASTER_KEY`; never put them in command arguments, MCP arguments, chats, or tickets. Errors must not contain keys, message bodies, or personal paths.
 
 **中文：** 读取目标进程内存可能触发安全软件检查；不要默认称为误报。若程序被拦截，可按安全软件厂商流程逐文件提交审查；不要关闭安全软件。若访问被拒绝，请让 WxMori 与微信在同一 Windows 用户会话中运行，并遵循设备权限策略。捕获后仍建议正常关闭微信以取得稳定副本；当前预览版会在私有副本回放 WAL，已发布 alpha1 不支持非空加密 WAL。绝不删除源 WAL。
 

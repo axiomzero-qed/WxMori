@@ -1,5 +1,11 @@
 # Changelog / 更新记录
 
+## v0.2.0-alpha.2 — 2026-10-18 preview / 预览版
+
+**中文：** alpha2 增加账号目录/密钥环元数据、显式安全替换配置、已验证身份检查、稀疏本地历史诊断、按会话批量导出，以及更谨慎的捕获错配判定和进度输出。MCP 增加 `list_accounts` 与 `export_all_chats`，共九个工具。Go 测试/vet、Luna 四协议/九工具合成冒烟、状态/身份 MCP 检查和三系统 CI 均通过（[CI 记录](https://github.com/axiomzero-qed/WxMori/actions/runs/39072189240)）。真实 alpha2 捕获与真实提交帧 WAL 回放仍未验证。详见 [测试记录](docs/testing.md)。
+
+**English:** Alpha2 adds account/keyring metadata, explicit safe config replacement, verified identity inspection, sparse-history diagnostics, per-session batch export, and improved capture mismatch/progress reporting. MCP adds `list_accounts` and `export_all_chats`, for nine tools total. Go tests/vet, Luna synthetic smoke across four protocols/nine tools, live status/identity MCP checks, and three-system CI passed ([CI run](https://github.com/axiomzero-qed/WxMori/actions/runs/39072189240)). Real alpha2 capture and real committed-WAL replay remain unverified. See [testing notes](docs/testing.md).
+
 ## v0.2.0-alpha.1 — 2026-10-17 preview release / 预览版
 
 **中文：** 新增 Windows AMD64 登录时实验性密钥捕获（调试器 `auto` 与轮询 `read_only`）、DPAPI `CurrentUser` 每库密钥环，以及私有副本中的加密 WAL 校验和回放。MCP `capture_key` 和 CLI 支持选择捕获模式。Go 测试、静态检查和 Windows/Linux/macOS CI 均通过；CI 包含完整程序启动及独立 stdio MCP 冒烟（四个协议版本、七个工具）。自动捕获仍仅在一个 Weixin 4.1.15.56 单账号样本及 Luna/Python stdio 宿主实测。
