@@ -43,6 +43,10 @@ func (f *captureFake) Capture(_ context.Context, args service.CaptureArgs) (any,
 
 type fakeCaptureClock struct{ at time.Time }
 
+type failCaptureWriter struct{ err error }
+
+func (w failCaptureWriter) Write([]byte) (int, error) { return 0, w.err }
+
 func (c *fakeCaptureClock) now() time.Time { return c.at }
 func (c *fakeCaptureClock) wait(_ context.Context, d time.Duration) error {
 	c.at = c.at.Add(d)
@@ -218,5 +222,33 @@ func TestTimeoutReminderThresholdAndInvalidProgressError(t *testing.T) {
 	var coded *fault.Error
 	if !errors.As(err, &coded) || coded.Code != "INVALID_PROGRESS" {
 		t.Fatalf("invalid progress mode error = %v, want INVALID_PROGRESS", err)
+	}
+}
+
+func TestRunCaptureReturnsProgressWriteErrorsPromptly(t *testing.T) {
+	writeErr := errors.New("synthetic closed pipe")
+	app := &captureFake{start: keycapture.Status{Running: true, State: "scanning"}}
+	clock := &fakeCaptureClock{at: time.Now()}
+	err := runCaptureWith(context.Background(), app, &bytes.Buffer{}, failCaptureWriter{writeErr}, 180, "auto", "human", clock.now, clock.wait)
+	if !errors.Is(err, writeErr) {
+		t.Fatalf("initial progress write error = %v, want %v", err, writeErr)
+	}
+	if app.statusCalls != 0 || len(app.actions) != 1 {
+		t.Fatalf("capture continued polling after failed initial output: calls=%d actions=%v", app.statusCalls, app.actions)
+	}
+
+	app = &captureFake{start: keycapture.Status{State: "completed"}}
+	err = runCaptureWith(context.Background(), app, failCaptureWriter{writeErr}, &bytes.Buffer{}, 180, "auto", "human", clock.now, clock.wait)
+	if !errors.Is(err, writeErr) {
+		t.Fatalf("final JSON write error = %v, want %v", err, writeErr)
+	}
+}
+
+func TestRunCaptureTerminalStatusErrorTakesPriorityOverOutputError(t *testing.T) {
+	statusErr := fault.New("SYNTHETIC_TERMINAL_FAILURE", "terminal status", "synthetic")
+	app := &captureFake{start: keycapture.Status{State: "failed", Error: statusErr}}
+	err := runCaptureWith(context.Background(), app, failCaptureWriter{errors.New("synthetic write failure")}, &bytes.Buffer{}, 180, "auto", "human", time.Now, waitCapture)
+	if err != statusErr {
+		t.Fatalf("terminal status error = %v, want status error %v", err, statusErr)
 	}
 }

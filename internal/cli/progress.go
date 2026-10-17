@@ -49,17 +49,26 @@ func runCaptureWith(ctx context.Context, app captureClient, out, errOut io.Write
 	}
 	printer := newCaptureProgress(out, errOut, progress, now, now())
 	printer.print(status, true)
+	if printer.writeErr != nil {
+		return printer.writeErr
+	}
 	remindedTimeout := false
 	remindTimeout := func(s keycapture.Status) {
 		if !remindedTimeout && s.Running && timeoutReminderDue(timeout, now().Sub(started)) {
-			fmt.Fprintln(errOut, "采集剩余时间约 30 秒或更少；如需延长，请使用 --timeout（最多 600 秒）。 / Capture has about 30 seconds or less remaining; use --timeout to extend (up to 600 seconds).")
+			printer.writeErr = writeCaptureLine(errOut, "采集剩余时间约 30 秒或更少；如需延长，请使用 --timeout（最多 600 秒）。 / Capture has about 30 seconds or less remaining; use --timeout to extend (up to 600 seconds).", printer.writeErr)
 			remindedTimeout = true
 		}
 	}
 	remindTimeout(status)
-	if err = captureFinished(status); err != nil || !status.Running {
+	if statusErr := captureFinished(status); statusErr != nil || !status.Running {
 		printer.finish(status)
-		return err
+		if statusErr != nil {
+			return statusErr
+		}
+		return printer.writeErr
+	}
+	if printer.writeErr != nil {
+		return printer.writeErr
 	}
 
 	remindedLogin := false
@@ -78,7 +87,7 @@ func runCaptureWith(ctx context.Context, app captureClient, out, errOut io.Write
 			}
 			printer.print(stopStatus, false)
 			printer.finish(stopStatus)
-			return nil
+			return printer.writeErr
 		}
 		v, err = app.Capture(ctx, service.CaptureArgs{Action: "status"})
 		if err != nil {
@@ -91,12 +100,18 @@ func runCaptureWith(ctx context.Context, app captureClient, out, errOut io.Write
 		printer.print(status, false)
 		remindTimeout(status)
 		if !remindedLogin && status.State == "watching_login" && status.VerifiedDatabases == 0 && now().Sub(started) >= 30*time.Second {
-			fmt.Fprintln(errOut, "尚未找到匹配的数据库密钥；请等 ready_for_login=true 后再本机重新登录，并确认所选数据目录属于目标账号。 / No matching database key has been found yet; re-login locally only after ready_for_login=true, and check that the selected data directory belongs to the intended account.")
+			printer.writeErr = writeCaptureLine(errOut, "尚未找到匹配的数据库密钥；请等 ready_for_login=true 后再本机重新登录，并确认所选数据目录属于目标账号。 / No matching database key has been found yet; re-login locally only after ready_for_login=true, and check that the selected data directory belongs to the intended account.", printer.writeErr)
 			remindedLogin = true
 		}
-		if err = captureFinished(status); err != nil || !status.Running {
+		if statusErr := captureFinished(status); statusErr != nil || !status.Running {
 			printer.finish(status)
-			return err
+			if statusErr != nil {
+				return statusErr
+			}
+			return printer.writeErr
+		}
+		if printer.writeErr != nil {
+			return printer.writeErr
 		}
 	}
 }
@@ -142,9 +157,6 @@ func captureFinished(status keycapture.Status) error {
 	if status.Running || status.State == "completed" {
 		return nil
 	}
-	if status.State == "failed" && status.Error != nil {
-		return status.Error
-	}
 	return fault.New("CAPTURE_INCOMPLETE", "采集未完成 / Capture incomplete", status.Hint)
 }
 
@@ -158,6 +170,7 @@ type captureProgress struct {
 	humanLine   bool
 	lastJSON    keycapture.Status
 	hasJSON     bool
+	writeErr    error
 }
 
 func newCaptureProgress(out, errOut io.Writer, mode string, now func() time.Time, at time.Time) *captureProgress {
@@ -175,15 +188,15 @@ func (p *captureProgress) print(status keycapture.Status, initial bool) {
 		}
 	} else if changed {
 		if p.humanLine {
-			fmt.Fprintln(p.errOut)
+			p.writeErr = writeCaptureLine(p.errOut, "", p.writeErr)
 		}
-		fmt.Fprintln(p.errOut, captureStateLine(status))
+		p.writeErr = writeCaptureLine(p.errOut, captureStateLine(status), p.writeErr)
 		if status.Hint != "" && (!p.hasLast || status.Hint != p.last.Hint) {
-			fmt.Fprintln(p.errOut, status.Hint)
+			p.writeErr = writeCaptureLine(p.errOut, status.Hint, p.writeErr)
 		}
 		p.humanLine = false
 	} else if countersChanged {
-		fmt.Fprintf(p.errOut, "\r%s", captureCounterLine(status))
+		p.writeErr = writeCapture(p.errOut, "\r"+captureCounterLine(status), p.writeErr)
 		p.humanLine = true
 	}
 	p.last, p.hasLast = status, true
@@ -200,8 +213,26 @@ func (p *captureProgress) finish(status keycapture.Status) {
 }
 
 func (p *captureProgress) emitJSON(status keycapture.Status) {
-	_ = json.NewEncoder(p.out).Encode(status)
+	if p.writeErr == nil {
+		p.writeErr = json.NewEncoder(p.out).Encode(status)
+	}
 	p.lastJSON, p.hasJSON = status, true
+}
+
+func writeCaptureLine(w io.Writer, text string, first error) error {
+	if first != nil {
+		return first
+	}
+	_, err := fmt.Fprintln(w, text)
+	return err
+}
+
+func writeCapture(w io.Writer, text string, first error) error {
+	if first != nil {
+		return first
+	}
+	_, err := io.WriteString(w, text)
+	return err
 }
 
 func captureStateChanged(a, b keycapture.Status) bool {
