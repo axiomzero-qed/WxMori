@@ -41,7 +41,7 @@
 | Capture MCP protocol / 捕获 MCP 协议 | `TestCaptureToolProtocolWithSyntheticSource` passed using an in-memory official SDK transport; this is not an independent stdio test or model trial. / 使用内存中的官方 SDK 传输通过；这不是独立 stdio 测试或模型试用。 |
 | Read-only capture / 只读捕获 | Windows synthetic child-process memory scan and HMAC validation passed. / Windows 合成子进程内存扫描和 HMAC 校验通过。 |
 | Protected keyring / 受保护密钥环 | DPAPI `CurrentUser` tests passed. / DPAPI `CurrentUser` 测试通过。 |
-| Full executable startup / 完整程序启动 | Failed with WinError 5. The cause is unconfirmed; the user's 360 Antivirus protection history is still awaited. This is not confirmed as an antivirus block or false positive. / 启动失败并返回 WinError 5。原因尚未确认，仍待用户查看 360 杀毒的拦截记录；不能据此认定是安全软件拦截或误报。 |
+| Full executable startup / 完整程序启动 | Failed with WinError 5. The 360 Realtime Protection log confirms it deleted `wxmori-keycapture.exe` after a malware detection; the same log records an earlier block of `diagnose.exe`. The detection is confirmed, but whether it is a false positive is not established. / 启动失败并返回 WinError 5。360 实时防护记录确认其在报毒后删除了 `wxmori-keycapture.exe`，同一记录还显示此前拦截过 `diagnose.exe`。拦截事实已确认，但是否误报尚无结论。 |
 | Real-account capture / 真实账号捕获 | The user selected their usual current account, but the real login trial is pending. A preliminary post-login scan yielded zero verified keys for 12 required databases. / 用户已选择平时使用的当前账号，但真实登录试验尚未进行。一次初步登录后扫描对 12 个所需数据库均未得到已验证密钥。 |
 
 **中文：** 当前七个 MCP 工具中的 `capture_key` 仍为实验性功能。独立完整程序 stdio 测试、新捕获工具的模型实际调用和登录期间真实捕获均待验证；合成协议测试不得表述为上述任一项已通过。
