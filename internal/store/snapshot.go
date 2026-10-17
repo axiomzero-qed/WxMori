@@ -18,6 +18,7 @@ import (
 	"github.com/axiomzero-qed/WxMori/internal/config"
 	"github.com/axiomzero-qed/WxMori/internal/cryptodb"
 	"github.com/axiomzero-qed/WxMori/internal/fault"
+	"github.com/axiomzero-qed/WxMori/internal/keyring"
 	_ "modernc.org/sqlite"
 )
 
@@ -161,13 +162,13 @@ func Snapshot(ctx context.Context, c config.Config, all bool) (dir, fingerprint 
 			_ = os.RemoveAll(cleanupDir)
 		}
 	}()
-	var master []byte
+	var material *keyring.Material
 	if c.DataDir != "" {
-		master, err = c.MasterKey()
+		material, err = c.Keys()
 		if err != nil {
 			return "", "", err
 		}
-		defer clear(master)
+		defer material.Clear()
 	}
 	for _, src := range files {
 		if err = ctx.Err(); err != nil {
@@ -194,7 +195,22 @@ func Snapshot(ctx context.Context, c config.Config, all bool) (dir, fingerprint 
 			if err = copyFile(src, raw); err != nil {
 				return "", "", err
 			}
-			err = cryptodb.DecryptFile(ctx, raw, dst, master)
+			var page [cryptodb.PageSize]byte
+			in, e := os.Open(raw)
+			if e != nil {
+				return "", "", e
+			}
+			_, e = io.ReadFull(in, page[:])
+			in.Close()
+			if e != nil {
+				return "", "", e
+			}
+			enc, e := material.Resolve(page[:])
+			if e != nil {
+				return "", "", e
+			}
+			err = cryptodb.DecryptFileWithKey(ctx, raw, dst, enc)
+			clear(enc)
 			_ = os.Remove(raw)
 			if err != nil {
 				return "", "", err

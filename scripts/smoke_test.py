@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -20,7 +21,7 @@ def run(command):
             try:
                 assert c.initialized["protocolVersion"] == protocol, c.initialized
                 listed = c.request("tools/list", {})["tools"]
-                assert len(listed) == 6
+                assert len(listed) == 7
                 for tool in listed:
                     schema = tool["inputSchema"]
                     assert schema["type"] == "object"
@@ -39,6 +40,9 @@ def run(command):
                     return data
 
                 assert call("wxmori_status", {})["ready"] is True
+                assert call("capture_key", {"action": "status"})["state"] == "idle"
+                call("capture_key", {"action": "invalid"}, "INVALID_ARGUMENTS")
+                call("capture_key", {"action": "start"}, "CAPTURE_SOURCE_REQUIRED" if os.name=='nt' else "CAPTURE_UNSUPPORTED")
                 sessions = call("list_sessions", {"keyword": "微忆"})["sessions"]
                 assert len(sessions) == 1
                 sid = sessions[0]["id"]

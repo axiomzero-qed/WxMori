@@ -12,6 +12,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/axiomzero-qed/WxMori/internal/fault"
+	"github.com/axiomzero-qed/WxMori/internal/keyring"
 )
 
 type Config struct {
@@ -91,6 +92,61 @@ func (c Config) Source() string {
 }
 func (c Config) Location() (*time.Location, error) { return time.LoadLocation(c.Timezone) }
 
+func (c Config) CapturedKeyFile() string {
+	path := c.Path
+	if path == "" {
+		path = DefaultPath()
+	}
+	return filepath.Join(filepath.Dir(path), ".wxmori-keys", keyring.AccountID(c.DataDir)[:24]+".json")
+}
+
+func (c Config) Keys() (*keyring.Material, error) {
+	m := &keyring.Material{BySalt: map[[16]byte][32]byte{}}
+	if s := strings.TrimSpace(os.Getenv("WXMORI_MASTER_KEY")); s != "" {
+		key, e := hex.DecodeString(s)
+		if e != nil || len(key) != 32 {
+			return nil, fault.New("INVALID_KEY", "主密钥格式无效 / Invalid master key format", "Expected exactly 64 hexadecimal characters in the local environment.")
+		}
+		m.Master = key
+	}
+	for _, path := range []string{c.KeyFile, c.CapturedKeyFile()} {
+		if path == "" {
+			continue
+		}
+		f, e := os.Open(path)
+		if os.IsNotExist(e) {
+			continue
+		}
+		if e != nil {
+			m.Clear()
+			return nil, fault.New("KEY_FILE_UNREADABLE", "无法读取本地密钥 / Cannot read local keys", "Check local key file permissions.")
+		}
+		data, e := io.ReadAll(io.LimitReader(f, 1<<20))
+		f.Close()
+		if e != nil {
+			m.Clear()
+			return nil, e
+		}
+		loaded, e := keyring.Decode(data, keyring.AccountID(c.DataDir))
+		clear(data)
+		if e != nil {
+			m.Clear()
+			return nil, e
+		}
+		if len(m.Master) == 0 && len(loaded.Master) > 0 {
+			m.Master = append([]byte(nil), loaded.Master...)
+		}
+		for salt, key := range loaded.BySalt {
+			m.BySalt[salt] = key
+		}
+		loaded.Clear()
+	}
+	if len(m.Master) == 0 && len(m.BySalt) == 0 {
+		return nil, fault.New("KEY_REQUIRED", "尚未取得当前账号密钥 / No keys for the selected account", "Call capture_key with action=start, then log in to this account yourself; poll action=status until completed. Or provide a local master_key file.")
+	}
+	return m, nil
+}
+
 func (c Config) MasterKey() ([]byte, error) {
 	s := strings.TrimSpace(os.Getenv("WXMORI_MASTER_KEY"))
 	if s == "" && c.KeyFile != "" {
@@ -108,7 +164,7 @@ func (c Config) MasterKey() ([]byte, error) {
 		s = strings.TrimSpace(k.MasterKey)
 	}
 	if s == "" {
-		return nil, fault.New("KEY_REQUIRED", "需要本地数据库主密钥 / A local database master key is required", "Set WXMORI_MASTER_KEY or key_file locally. Automatic key acquisition is not included in this release.")
+		return nil, fault.New("KEY_REQUIRED", "需要本地数据库主密钥 / A local database master key is required", "Set WXMORI_MASTER_KEY or key_file locally. Captured per-database keys are available through Config.Keys instead.")
 	}
 	b, err := hex.DecodeString(s)
 	if err != nil || len(b) != 32 {

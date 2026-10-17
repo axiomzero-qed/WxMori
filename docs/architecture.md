@@ -8,9 +8,19 @@
 
 ## Sources and lifecycle / 数据源与生命周期
 
-**中文：** 配置必须且只能设置 `data_dir` 或 `decrypted_dir`。前者指向单个微信账号的 `db_storage`，并需要本地提供主密钥；后者指向已有的解密 SQLite 数据目录，可在 Windows、Linux 和 macOS 使用。自动发现仅供 `init` 选择账号；初始 alpha 不合并账号。程序以修改时间和大小检测源变化，并在私有 SQLite 副本中保留明文 WAL、仅在该副本上 checkpoint。源数据库不修改。
+**中文：** 配置必须且只能设置 `data_dir` 或 `decrypted_dir`。前者指向单个微信账号的 `db_storage`；已发布 `v0.1.0-alpha.1` 需要本地手动提供主密钥，工作分支实验功能可在登录捕获并验证每库密钥后从 DPAPI 密钥环自动加载。后者指向已有的解密 SQLite 数据目录，可在 Windows、Linux 和 macOS 使用。自动发现仅供 `init` 选择账号；初始 alpha 不合并账号。程序以修改时间和大小检测源变化，并在私有 SQLite 副本中保留明文 WAL、仅在该副本上 checkpoint。源数据库不修改。
 
-**English:** Configuration sets exactly one of `data_dir` or `decrypted_dir`. The former points to one WeChat account's `db_storage` and requires a locally supplied master key; the latter points to existing decrypted SQLite data and works on Windows, Linux, and macOS. Discovery is only for selecting an account with `init`; the initial alpha does not merge accounts. Source changes are detected by modification time and size. Plaintext WAL data is retained in the private SQLite copy and checkpointed there only. The source database is not modified.
+**English:** Configuration sets exactly one of `data_dir` or `decrypted_dir`. The former points to one WeChat account's `db_storage`. Published `v0.1.0-alpha.1` requires a manually supplied local master key; the experimental working-branch flow can load per-database keys automatically from the DPAPI keyring after login capture and validation. The latter points to existing decrypted SQLite data and works on Windows, Linux, and macOS. Discovery is only for selecting an account with `init`; the initial alpha does not merge accounts. Source changes are detected by modification time and size. Plaintext WAL data is retained in the private SQLite copy and checkpointed there only. The source database is not modified.
+
+## Experimental Windows capture / Windows 实验性捕获
+
+**中文：** 工作分支的实验性 Windows 64 位捕获器通过只读进程内存读取 API 扫描微信登录期间可读区域。它寻找 AES-256 密钥调度、旧式原始密钥文本和对所选数据库盐的引用，再对本机已选数据库页执行 HMAC 验证；仅经验证的每库密钥进入 DPAPI `CurrentUser` 密钥环。Windows `VirtualQueryEx` 与 `ReadProcessMemory` 文档描述了区域查询和只读复制接口；上游 SQLCipher 使用 OpenSSL 的公开实现也展示了数据库加密路径，但这些来源不证明当前 Windows 微信构建采用相同实现。[Windows API](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualqueryex) · [Tencent WCDB](https://github.com/Tencent/wcdb) · [SQLCipher OpenSSL provider](https://github.com/sqlcipher/sqlcipher/blob/master/src/crypto_openssl.c)
+
+**English:** The working branch's experimental Windows 64-bit capture scans readable regions during WeChat login using read-only process-memory APIs. It looks for AES-256 key schedules, legacy raw-key text, and references to the selected database salt, then validates candidates with HMAC against a locally selected database page. Only verified per-database keys enter a DPAPI `CurrentUser` keyring. Windows [`VirtualQueryEx`](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualqueryex) and [`ReadProcessMemory`](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-readprocessmemory) document region queries and read-only copying; Tencent WCDB and upstream SQLCipher's OpenSSL provider document related database components, but do not establish that the current Windows WeChat build uses the same implementation ([WCDB](https://github.com/Tencent/wcdb), [SQLCipher provider](https://github.com/sqlcipher/sqlcipher/blob/master/src/crypto_openssl.c)).
+
+**中文：** 此捕获不注入、不使用 WeFlow DLL 或代码，也不自动登录或退出。MCP 通过扁平 `capture_key` 参数启动、查询和停止异步任务；CLI 命令在前台阻塞运行。已发布的 alpha 仍使用手动密钥。一次初步登录后扫描未能为 12 个所需数据库验证出任何密钥；计划中的登录期间实测仍待完成。功能测试与特定微信版本实测分别记录，当前不宣称任一特定版本兼容或普遍可捕获。
+
+**English:** Capture does not inject into WeChat, use WeFlow DLLs or code, or automatically log in or out. MCP starts, checks, and stops an asynchronous job through flat `capture_key` arguments; the CLI command blocks in the foreground. The published alpha still uses manual keys. One preliminary post-login scan found no verified keys for the 12 required databases; the planned during-login trial is still pending. Feature tests and tests against specific WeChat versions are recorded separately. No specific-version compatibility or general capture guarantee is claimed.
 
 **中文：** 非空加密 WAL 不支持，必须明确报错，不得盲目合并。数据库页未通过认证时不得生成部分解密结果。临时目录在正常退出或错误时清理；强制终止或断电可能留下明文临时文件。仅显式运行 `decrypt --out DIR` 才创建持久解密副本。
 
@@ -28,6 +38,6 @@
 
 ## Validation status / 验证状态
 
-**中文：** 合成回归、独立客户端协议检查和 GPT-6 Luna 实际调用已通过，详见 [testing.md](testing.md)。只有 `contact.db` 和 `message_N.db` 进入 CLI/MCP 解密及完整性检查流程；辅助全文索引可能依赖微信专用分词器，不作为已验证产物发布。
+**中文：** 已发布 `v0.1.0-alpha.1` 的合成回归、独立客户端协议检查和 GPT-6 Luna 实际调用已通过，详见 [testing.md](testing.md)。工作分支目前 `go test ./...` 和 `go vet ./...` 通过；独立完整程序 stdio 测试及针对新捕获工具的模型调用仍待验证。只有 `contact.db` 和 `message_N.db` 进入 CLI/MCP 解密及完整性检查流程；辅助全文索引可能依赖微信专用分词器，不作为已验证产物发布。
 
-**English:** Synthetic regression, independent-client protocol checks, and GPT-6 Luna calls passed; see [testing.md](testing.md). Only `contact.db` and `message_N.db` enter CLI/MCP decryption and integrity checks. Auxiliary full-text indexes may require WeChat-specific tokenizers and are not published as verified output.
+**English:** The published `v0.1.0-alpha.1` passed synthetic regression, independent-client protocol checks, and GPT-6 Luna calls; see [testing.md](testing.md). The working branch currently passes `go test ./...` and `go vet ./...`; independent full-program stdio testing and a model call for the new capture tool remain unverified. Only `contact.db` and `message_N.db` enter CLI/MCP decryption and integrity checks. Auxiliary full-text indexes may require WeChat-specific tokenizers and are not published as verified output.

@@ -19,3 +19,5 @@ config.json
 coverage.out
 __pycache__/
 *.pyc
+.wxmori-keys/
+.wxmori-key-*

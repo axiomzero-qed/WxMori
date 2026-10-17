@@ -29,11 +29,30 @@
 
 **English:** GPT-6 Luna used the exact session ID specified in the supplied handoff and exported TXT and JSONL with 381 records each. File existence, counts, UTF-8 and SHA-256 checks passed; all 235 returned multiline bodies were preserved in TXT. Real identities, paths and bodies are absent from public reports.
 
+## Working-branch development checks / 工作分支开发检查
+
+**中文：** 日期：2026-10-17；版本：`v0.2.0-dev`。以下是开发分支的自动化或合成数据检查，与上方已发布 `v0.1.0-alpha.1` 的记录分开；它们不代表完整可执行程序启动、独立 stdio 客户端、模型调用或真实微信兼容性。
+
+**English:** Date: 2026-10-17; version: `v0.2.0-dev`. These are automated or synthetic-data checks for the development branch, separate from the published `v0.1.0-alpha.1` record above. They do not establish full executable startup, an independent stdio client, model calls, or compatibility with real WeChat.
+
+| Check / 检查 | Evidence / 证据 |
+| --- | --- |
+| Go regression and static checks / Go 回归与静态检查 | Working-branch `go test ./...` and `go vet ./...` passed locally on Windows. / 工作分支在 Windows 本机通过 `go test ./...` 和 `go vet ./...`。 |
+| Capture MCP protocol / 捕获 MCP 协议 | `TestCaptureToolProtocolWithSyntheticSource` passed using an in-memory official SDK transport; this is not an independent stdio test or model trial. / 使用内存中的官方 SDK 传输通过；这不是独立 stdio 测试或模型试用。 |
+| Read-only capture / 只读捕获 | Windows synthetic child-process memory scan and HMAC validation passed. / Windows 合成子进程内存扫描和 HMAC 校验通过。 |
+| Protected keyring / 受保护密钥环 | DPAPI `CurrentUser` tests passed. / DPAPI `CurrentUser` 测试通过。 |
+| Full executable startup / 完整程序启动 | Failed with WinError 5. The cause is unconfirmed; the user's 360 Antivirus protection history is still awaited. This is not confirmed as an antivirus block or false positive. / 启动失败并返回 WinError 5。原因尚未确认，仍待用户查看 360 杀毒的拦截记录；不能据此认定是安全软件拦截或误报。 |
+| Real-account capture / 真实账号捕获 | The user selected their usual current account, but the real login trial is pending. A preliminary post-login scan yielded zero verified keys for 12 required databases. / 用户已选择平时使用的当前账号，但真实登录试验尚未进行。一次初步登录后扫描对 12 个所需数据库均未得到已验证密钥。 |
+
+**中文：** 当前七个 MCP 工具中的 `capture_key` 仍为实验性功能。独立完整程序 stdio 测试、新捕获工具的模型实际调用和登录期间真实捕获均待验证；合成协议测试不得表述为上述任一项已通过。
+
+**English:** `capture_key`, one of the current seven MCP tools, remains experimental. An independent full-program stdio test, an actual model call for the new capture tool, and real capture during login remain unverified; the synthetic protocol test must not be reported as passing any of these.
+
 ## Remaining coverage / 待覆盖范围
 
-**中文：** 商业宿主（如 Claude Desktop、Cursor）和其他模型尚未实测。跨系统 CI 与发布构建状态以 GitHub Actions 为准，本机环境为 Windows。自动取密钥、加密 WAL、实时监听、附件原文件及多账号合并均未实现。
+**中文：** 商业宿主（如 Claude Desktop、Cursor）和其他模型尚未实测。跨系统 CI 与发布构建状态以 GitHub Actions 为准，本机环境为 Windows。已发布 alpha1 未实现自动取密钥；开发分支实验采集尚未通过真实登录验证。加密 WAL、实时监听、附件原文件及多账号合并均未实现。
 
-**English:** Commercial hosts such as Claude Desktop and Cursor, and other models, have not been tested. GitHub Actions records cross-platform CI and release builds; local execution used Windows. Automatic key acquisition, encrypted WAL, live monitoring, attachment binaries, and multi-account merging are not implemented.
+**English:** Commercial hosts such as Claude Desktop and Cursor, and other models, have not been tested. GitHub Actions records cross-platform CI and release builds; local execution used Windows. Published alpha1 has no automatic key capture; experimental development capture has not yet been validated with a real login. Encrypted WAL, live monitoring, attachment binaries, and multi-account merging are not implemented.
 
 **中文：** 协议参考 [MCP tools](https://modelcontextprotocol.io/specification/2025-06-18/server/tools) 与 [stdio](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)，日志语义参考 [SQLite WAL](https://www.sqlite.org/wal.html)。
 

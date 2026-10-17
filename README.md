@@ -6,9 +6,13 @@
 
 **English:** WxMori is an independent Go CLI and local MCP server for reading WeChat 4.x chat databases. It runs as a single binary using the official `github.com/modelcontextprotocol/go-sdk` over stdio, under the MIT license. The first preview is `v0.1.0-alpha.1`; Go 1.26 or later is needed only to build from source.
 
-**中文：** 当前版本支持用户提供主密钥的 Windows 微信 4.x 加密数据库，也支持 Windows、Linux 和 macOS 上已有的解密 SQLite 数据。没有自动提取密钥或进程钩子；不宣称兼容所有微信版本或 MCP 宿主。
+**中文：** 已发布的 `v0.1.0-alpha.1` 支持用户手动提供主密钥的 Windows 微信 4.x 加密数据库，也支持 Windows、Linux 和 macOS 上已有的解密 SQLite 数据。该版本不自动捕获密钥或安装进程钩子；不宣称兼容所有微信版本或 MCP 宿主。
 
-**English:** The current version supports encrypted Windows WeChat 4.x databases when the user supplies the master key, and existing decrypted SQLite data on Windows, Linux, and macOS. Automatic key extraction and process hooks are not included. Compatibility with every WeChat version or MCP host is not claimed.
+**English:** Published `v0.1.0-alpha.1` supports encrypted Windows WeChat 4.x databases when the user manually supplies the master key, and existing decrypted SQLite data on Windows, Linux, and macOS. This release does not capture keys automatically or install process hooks. Compatibility with every WeChat version or MCP host is not claimed.
+
+**中文：** 工作分支正在开发独立、实验性的 Windows 64 位登录时只读内存捕获；它不使用 WeFlow DLL 或代码。它会请求用户在本机登录，再验证候选数据库密钥。实际微信版本登录试验尚未完成，不能据此声称兼容当前或任一特定版本。此功能不属于已发布的 `v0.1.0-alpha.1`；该版本仍需手动提供密钥。
+
+**English:** The working branch is developing an independent experimental Windows 64-bit, login-time, read-only memory capture. It uses no WeFlow DLL or code. It asks the user to log in locally, then validates candidate database keys. The real-WeChat login trial is still pending, so compatibility with the current or any specific version is not established. This feature is not part of published `v0.1.0-alpha.1`, which still requires a manually supplied key.
 
 ## Install / 安装
 
@@ -40,9 +44,9 @@ wxmori --config ./demo-data/config.json export --session wxmori-demo@chatroom --
 
 **English:** `wxmori init` discovers candidate accounts and writes a config without the key. If several accounts are found, select one explicitly with `--data-dir`; the initial alpha does not merge accounts. `data_dir` points to the selected account's `db_storage`; use `decrypted_dir` for existing decrypted SQLite data. Set exactly one of these fields. Relative paths are resolved from the config directory. The default config is under the user config directory at `wxmori/config.json`; use `--config PATH` or `WXMORI_CONFIG` to select another.
 
-**中文：** 主密钥仅通过本地环境变量 `WXMORI_MASTER_KEY` 或 `key_file` 提供。密钥文件是包含 `{"master_key":"64 位十六进制字符"}` 的 JSON。请勿将密钥放进命令参数、MCP 参数或聊天。配置示例：
+**中文：** 已发布的 `v0.1.0-alpha.1` 通过本地环境变量 `WXMORI_MASTER_KEY` 或 `key_file` 手动提供主密钥；密钥文件是包含 `{"master_key":"64 位十六进制字符"}` 的 JSON。工作分支可使用登录捕获后自动加载的 DPAPI 保护每库密钥环；手动密钥仍可作为回退。请勿将密钥放进命令参数、MCP 参数或聊天。配置示例：
 
-**English:** Supply the master key locally through `WXMORI_MASTER_KEY` or `key_file`. The key file is JSON containing `{"master_key":"64 hexadecimal characters"}`. Never put the key in command arguments, MCP arguments, or chats. Example config:
+**English:** Published `v0.1.0-alpha.1` takes a manually supplied master key through local `WXMORI_MASTER_KEY` or `key_file`; the key file is JSON containing `{"master_key":"64 hexadecimal characters"}`. The working branch can use a DPAPI-protected per-database keyring automatically loaded after login capture; manual keys remain a fallback. Never put keys in command arguments, MCP arguments, or chats. Example config:
 
 ```json
 {
@@ -64,6 +68,10 @@ wxmori sessions --keyword demo
 wxmori export --session demo --months 2026-09
 wxmori decrypt --out ./decrypted-copy
 ```
+
+**中文：** 工作分支实验性捕获可通过 `wxmori --config PATH key capture --timeout 180` 启动；它会阻塞运行并显示有界进度，按 Ctrl+C 停止。MCP 提供异步 `capture_key` 工具（`start`、`status`、`stop`）；开始成功只代表任务启动，不代表捕获成功。仅经数据库页 HMAC 验证的密钥会写入账号目录旁的 DPAPI 保护密钥环。详情见 [MCP 集成](docs/mcp.md) 和 [安全与隐私](docs/security.md)。
+
+**English:** The working-branch experimental capture can be started with `wxmori --config PATH key capture --timeout 180`; it runs in the foreground with bounded progress and stops on Ctrl+C. MCP exposes an asynchronous `capture_key` tool (`start`, `status`, `stop`); a successful start means only that the job began, not that capture succeeded. Only keys validated by database-page HMAC are saved to a DPAPI-protected keyring beside the account directory. See [MCP integration](docs/mcp.md) and [security and privacy](docs/security.md).
 
 **中文：** `decrypt` 只将聊天所需的 `contact.db` 和 `message_N.db` 保存到新明文目录，辅助全文索引和媒体库不在本版范围内。读取时使用私有临时副本和 SQLite 索引，不修改源数据。正常退出或错误时清理临时目录；强制终止或断电可能留下明文。以修改时间和大小检测源变化。非空加密 WAL 不支持：请正常关闭微信，让微信完成 checkpoint 后重试；请勿删除源 WAL。
 
@@ -88,16 +96,16 @@ wxmori decrypt --out ./decrypted-copy
 
 ## Data and status / 数据与状态
 
-**中文：** MCP 工具包括 `wxmori_status`、`list_sessions`、`get_messages`、`search_messages`、`get_contacts` 和 `export_chat`。日期 `from` 包含、`to` 不包含，按配置时区解释，默认 `Asia/Shanghai`。搜索会将空白分隔的关键词按 AND 组合，并进行字面子串匹配。会话列表和联系人默认最多 50 条、上限 200；消息和搜索默认最多 100 条、上限 500；偏移量范围为 0 至 1,000,000。
+**中文：** 已发布 alpha 的 MCP 工具包括 `wxmori_status`、`list_sessions`、`get_messages`、`search_messages`、`get_contacts` 和 `export_chat`；工作分支另有实验性 `capture_key`。日期 `from` 包含、`to` 不包含，按配置时区解释，默认 `Asia/Shanghai`。搜索会将空白分隔的关键词按 AND 组合，并进行字面子串匹配。会话列表和联系人默认最多 50 条、上限 200；消息和搜索默认最多 100 条、上限 500；偏移量范围为 0 至 1,000,000。
 
-**English:** MCP tools are `wxmori_status`, `list_sessions`, `get_messages`, `search_messages`, `get_contacts`, and `export_chat`. Date `from` is inclusive and `to` exclusive, interpreted in the configured timezone, default `Asia/Shanghai`. Search combines whitespace-separated terms with AND and matches literal substrings. Session and contact lists default to 50 items, max 200; message and search results default to 100, max 500; offsets range from 0 to 1,000,000.
+**English:** Published-alpha MCP tools are `wxmori_status`, `list_sessions`, `get_messages`, `search_messages`, `get_contacts`, and `export_chat`; the working branch adds experimental `capture_key`. Date `from` is inclusive and `to` exclusive, interpreted in the configured timezone, default `Asia/Shanghai`. Search combines whitespace-separated terms with AND and matches literal substrings. Session and contact lists default to 50 items, max 200; message and search results default to 100, max 500; offsets range from 0 to 1,000,000.
 
 **中文：** 消息预览每条最多 8192 字节、每页约 64 KiB；导出读取全部匹配消息，单条解码上限 4 MiB。保留系统消息，附件以占位信息表示，不导出其二进制。导出按月生成 TXT 或 JSONL 文件，并返回路径、条数、SHA-256 和时间戳。未识别的类型或发送者会有占位符和警告。
 
 **English:** Previews allow 8,192 bytes per body and about 64 KiB per page. Exports read all matching messages, with a 4 MiB decoded limit per message. System messages are retained; attachments have placeholders and their binaries are not exported. Monthly TXT or JSONL files return paths, counts, SHA-256 hashes, and a timestamp. Unknown types or senders are reported with placeholders and warnings.
 
-**中文：** 合成回归、四个 MCP 协议版本与 GPT-6 Luna 实际调用已通过。范围见[测试记录](docs/testing.md)和 [Luna 调用记录](docs/luna-call-trial.md)。商业宿主和其他模型仍待实测。
+**中文：** 已发布 `v0.1.0-alpha.1` 的合成回归、四个 MCP 协议版本与 GPT-6 Luna 实际调用已通过。工作分支的七工具版本尚未通过独立完整程序 stdio 测试或实际模型调用；当前本机 `go test ./...` 与 `go vet ./...` 已通过。范围见[测试记录](docs/testing.md)和 [Luna 调用记录](docs/luna-call-trial.md)。商业宿主和其他模型仍待实测。
 
-**English:** Synthetic regression, four MCP protocol versions, and actual GPT-6 Luna calls passed. See [validation scope](docs/testing.md) and the [Luna trial](docs/luna-call-trial.md). Commercial hosts and other models still need testing.
+**English:** The published `v0.1.0-alpha.1` passed synthetic regression, four MCP protocol versions, and actual GPT-6 Luna calls. The seven-tool working branch has not passed an independent full-program stdio test or an actual model call; local `go test ./...` and `go vet ./...` currently pass. See [validation scope](docs/testing.md) and the [Luna trial](docs/luna-call-trial.md). Commercial hosts and other models still need testing.
 
 See [docs/architecture.md](docs/architecture.md), [docs/mcp.md](docs/mcp.md), [docs/security.md](docs/security.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md) for details. / 详情见上述文档。

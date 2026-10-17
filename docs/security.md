@@ -8,9 +8,21 @@
 
 ## Key handling / 密钥处理
 
-**中文：** 本版本不自动提取密钥或安装进程钩子。主密钥通过本地环境变量 `WXMORI_MASTER_KEY` 或 `key_file` 提供，文件格式为 `{"master_key":"..."}`。请勿将密钥放入命令参数、MCP 参数、聊天或工单。错误信息不得包含密钥、消息正文或敏感路径。
+**中文：** 已发布的 `v0.1.0-alpha.1` 仅支持手动提供主密钥。工作分支另有实验性 Windows 64 位登录时只读内存捕获，不注入进程、不使用 WeFlow DLL 或代码，也不自动登录或退出微信。它不通过 MCP 接收微信密码或二维码令牌。当前微信版本的真实登录捕获试验尚未完成。
 
-**English:** This release does not extract keys automatically or install process hooks. Supply the key locally through `WXMORI_MASTER_KEY` or `key_file`, formatted as `{"master_key":"..."}`. Do not put keys in command arguments, MCP arguments, chats, or tickets. Errors must not contain keys, message bodies, or sensitive paths.
+**English:** Published `v0.1.0-alpha.1` supports manual master-key input only. The working branch has a separate experimental Windows 64-bit, login-time, read-only memory capture. It does not inject into the process, use WeFlow DLLs or code, or automatically log in or out of WeChat. It does not accept WeChat passwords or QR tokens through MCP. A real login capture trial on the current WeChat version is still pending.
+
+**中文：** 捕获识别 AES-256 密钥调度候选项、旧式原始密钥文本和所选数据库盐的引用，再用所选数据库页 HMAC 验证每库密钥。只有通过验证的密钥会保存在账号目录旁的 `.wxmori-keys/<account-path-hash>.json`；文件通过 Windows DPAPI `CurrentUser` 保护，通常只能由同一台电脑上的同一 Windows 用户解密。该密钥环绑定账号目录和数据库盐，不要跨账号复制或混用。捕获结果、MCP 输出、日志和转储不得包含密钥。
+
+**English:** Capture recognizes AES-256 key-schedule candidates, legacy raw-key text, and references to the selected database salt, then verifies per-database keys against the selected database page HMAC. Only verified keys are saved beside the account directory at `.wxmori-keys/<account-path-hash>.json`. Windows DPAPI `CurrentUser` protects the file; ordinarily, only the same Windows user on the same computer can decrypt it. The keyring is bound to the account directory and database salt; do not copy or mix it across accounts. Capture results, MCP output, logs, and dumps must not contain keys.
+
+**中文：** MCP 的 `capture_key` 使用已由 `init` 选择的 `data_dir`，以 `start`、`status`、`stop` 控制异步任务；默认超时 180 秒，最多 600 秒。开始成功不等于捕获成功。CLI 的 `key capture` 命令在前台运行，Ctrl+C 可停止。密钥也可继续通过本地 `key_file` 或 `WXMORI_MASTER_KEY` 提供；不要将其放入命令参数、MCP 参数、聊天或工单。错误信息不得包含密钥、消息正文或个人路径。
+
+**English:** MCP `capture_key` uses the `data_dir` already selected by `init` and controls an asynchronous job with `start`, `status`, and `stop`; the default timeout is 180 seconds, maximum 600. A successful start is not a successful capture. The CLI `key capture` command runs in the foreground and can be stopped with Ctrl+C. Keys can still be supplied locally through `key_file` or `WXMORI_MASTER_KEY`; never put them in command arguments, MCP arguments, chats, or tickets. Errors must not contain keys, message bodies, or personal paths.
+
+**中文：** 读取目标进程内存可能触发安全软件检查；这不应被默认称为误报。若访问被拒绝，请让 WxMori 与微信在同一 Windows 用户会话中运行，并遵循设备管理员和安全软件策略；不要关闭安全软件。捕获后如果存在非空加密 WAL，正常关闭微信后再导出；绝不删除 WAL。
+
+**English:** Reading another process's memory may trigger security-software checks; do not label such a detection a false positive by default. If access is denied, run WxMori and WeChat in the same Windows user session and follow device administrator and security-software policy; do not disable security software. If a non-empty encrypted WAL exists after capture, close WeChat normally before exporting; never delete the WAL.
 
 ## Temporary and exported files / 临时文件与导出文件
 

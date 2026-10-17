@@ -2,9 +2,9 @@
 
 ## Supported versions / 支持版本
 
-**中文：** 当前仅维护最新 alpha 版本。接口和微信数据库兼容性可能变化；报告问题时请注明确切版本。
+**中文：** 当前仅维护最新 alpha 版本。工作分支的 Windows 只读登录时捕获仍属实验性，真实微信登录试验尚待完成，不代表已验证的微信版本兼容性。报告问题时请注明 WxMori 和微信的确切版本。
 
-**English:** Only the latest alpha is currently maintained. Interfaces and WeChat database compatibility may change; include the exact version when reporting issues.
+**English:** Only the latest alpha is currently maintained. The working branch's Windows read-only login-time capture is experimental and its real-WeChat login trial is pending; it does not establish compatibility with a WeChat version. Include exact WxMori and WeChat versions when reporting issues.
 
 ## Reporting / 报告问题
 

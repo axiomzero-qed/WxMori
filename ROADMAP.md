@@ -8,7 +8,7 @@
 
 ## Next / 下一阶段
 
-1. Independent Windows key acquisition with versioned fixtures; no private WeFlow DLL dependency. / 独立 Windows 取密钥及版本样本，不依赖 WeFlow 私有 DLL。
+1. Working branch: experimental independent Windows 64-bit login-time, read-only key capture; real-WeChat login trial and versioned fixtures are pending. No WeFlow DLL or code. This is not part of published `v0.1.0-alpha.1`. / 工作分支：实验性独立 Windows 64 位登录时只读密钥捕获；真实微信登录试验和版本样本仍待完成。不使用 WeFlow DLL 或代码，且不属于已发布的 `v0.1.0-alpha.1`。
 2. Authenticated encrypted WAL snapshots with committed-frame and source-race tests. / 可校验的加密 WAL 快照及提交帧、并发源变化测试。
 3. More WeChat versions, models and actual host integrations; publish the tested matrix. / 增加微信版本、模型与实际宿主测试，公布实测矩阵。
 4. Improve unresolved-sender diagnostics and incremental indexing before live monitoring. / 改善发送者未解析诊断与增量索引，再实现实时监听。

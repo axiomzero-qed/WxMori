@@ -10,16 +10,19 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/axiomzero-qed/WxMori/internal/buildinfo"
 	"github.com/axiomzero-qed/WxMori/internal/config"
 	"github.com/axiomzero-qed/WxMori/internal/demodata"
 	"github.com/axiomzero-qed/WxMori/internal/fault"
+	"github.com/axiomzero-qed/WxMori/internal/keycapture"
 	"github.com/axiomzero-qed/WxMori/internal/mcpserver"
 	"github.com/axiomzero-qed/WxMori/internal/service"
 	"github.com/axiomzero-qed/WxMori/internal/store"
 )
 
-const Version = "0.1.0-alpha.1"
+const Version = buildinfo.Version
 const help = `WxMori / 微忆 — local WeChat export for MCP / 本地微信导出
 Usage / 用法: wxmori [--config PATH] COMMAND [OPTIONS]
   init       Configure one local source / 配置一个本地数据源
@@ -28,6 +31,7 @@ Usage / 用法: wxmori [--config PATH] COMMAND [OPTIONS]
   sessions   Find chats (--keyword NAME) / 查找会话
   export     Save files (--session ID --months YYYY-MM) / 导出文件
   decrypt    Save a verified SQLite copy (--out NEW_DIR) / 保存校验过的明文副本
+  key capture  Capture this account's keys during Windows login / Windows 登录期间采集本账号密钥
   demo       Create fictional test data (--dir NEW_DIR) / 创建合成测试数据
   version    Show version / 查看版本
 Keys stay in a local key file or WXMORI_MASTER_KEY. / 密钥放本地文件或环境变量。
@@ -59,6 +63,13 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 		return nil
 	}
 	command, args := args[0], args[1:]
+	if command == "key" {
+		if len(args) == 0 || args[0] != "capture" {
+			return fault.New("UNKNOWN_COMMAND", "未知密钥命令 / Unknown key command", "Use wxmori [--config PATH] key capture --timeout 180.")
+		}
+		command = "key-capture"
+		args = args[1:]
+	}
 	if command == "version" || command == "--version" {
 		fmt.Fprintln(out, Version)
 		return nil
@@ -70,6 +81,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 	f := flag.NewFlagSet(command, flag.ContinueOnError)
 	f.SetOutput(errOut)
 	var dir, dataDir, decryptedDir, keyFile, outputDir, timezone, keyword, session, months, from, to, format string
+	var captureTimeout int
 	switch command {
 	case "init":
 		f.StringVar(&dataDir, "data-dir", "", "Account db_storage / 账号 db_storage")
@@ -89,6 +101,8 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 		f.StringVar(&format, "format", "txt", "txt or jsonl / txt 或 jsonl")
 	case "decrypt":
 		f.StringVar(&dir, "out", "", "New persistent plaintext directory / 新建明文输出目录")
+	case "key-capture":
+		f.IntVar(&captureTimeout, "timeout", 180, "Capture seconds, maximum 600 / 采集秒数，最多 600")
 	case "status", "serve":
 	default:
 		return fault.New("UNKNOWN_COMMAND", "未知命令 / Unknown command", "Run wxmori --help.")
@@ -165,6 +179,41 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 		return loadErr
 	}
 	switch command {
+	case "key-capture":
+		v, err := app.Capture(ctx, service.CaptureArgs{Action: "start", TimeoutSeconds: captureTimeout})
+		if err != nil {
+			return err
+		}
+		if err = printJSON(v); err != nil {
+			return err
+		}
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				v, err = app.Capture(context.Background(), service.CaptureArgs{Action: "stop"})
+				if err != nil {
+					return err
+				}
+				return printJSON(v)
+			case <-ticker.C:
+				v, err = app.Capture(ctx, service.CaptureArgs{Action: "status"})
+				if err != nil {
+					return err
+				}
+				if err = printJSON(v); err != nil {
+					return err
+				}
+				status := v.(keycapture.Status)
+				if !status.Running {
+					if status.State != "completed" {
+						return fault.New("CAPTURE_INCOMPLETE", "采集未完成 / Capture incomplete", status.Hint)
+					}
+					return nil
+				}
+			}
+		}
 	case "sessions":
 		v, err := app.Sessions(ctx, service.ListArgs{Keyword: keyword})
 		if err != nil {

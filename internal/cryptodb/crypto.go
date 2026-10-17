@@ -70,6 +70,15 @@ func DecryptPage(page, enc, mac []byte, number uint32) ([]byte, error) {
 
 // DecryptFile authenticates every page and publishes only a complete private file.
 func DecryptFile(ctx context.Context, src, dst string, master []byte) (err error) {
+	return decryptFile(ctx, src, dst, master, false)
+}
+
+// DecryptFileWithKey accepts a per-database encryption key; all pages still authenticate.
+func DecryptFileWithKey(ctx context.Context, src, dst string, enc []byte) error {
+	return decryptFile(ctx, src, dst, enc, true)
+}
+
+func decryptFile(ctx context.Context, src, dst string, material []byte, derived bool) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -89,7 +98,15 @@ func DecryptFile(ctx context.Context, src, dst string, master []byte) (err error
 	if bytes.Equal(page[:16], SQLiteHeader) {
 		return fault.New("ALREADY_PLAINTEXT", "数据库已解密 / Database is already SQLite", "Use decrypted_dir for existing SQLite databases.")
 	}
-	enc := Derive(master, page[:16])
+	var enc []byte
+	if derived {
+		if len(material) != 32 {
+			return fault.New("INVALID_KEY", "密钥长度无效 / Invalid key length", "Capture or supply a valid database key.")
+		}
+		enc = append([]byte(nil), material...)
+	} else {
+		enc = Derive(material, page[:16])
+	}
 	mac := MACKey(enc, page[:16])
 	defer clear(enc)
 	defer clear(mac)
