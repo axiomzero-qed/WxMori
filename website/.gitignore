@@ -1,0 +1,7 @@
+/dist/
+/.dist-tmp/
+/.release-cache/
+/.wrangler/
+/deployment/
+/node_modules/
+/*.zip

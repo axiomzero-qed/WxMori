@@ -1,0 +1,11 @@
+{
+  "name": "wxmori-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node verify.mjs",
+    "preview": "node preview.mjs"
+  },
+  "engines": { "node": ">=22" }
+}

@@ -3,6 +3,7 @@
 /demo-data/
 /exports/
 /private/
+/.wrangler/
 *.db
 *.db-wal
 *.db-shm

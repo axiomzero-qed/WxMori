@@ -1,5 +1,9 @@
 # WxMori / 微忆
 
+**官网 / Website:** [中文](https://wxmori.com/) · [English](https://wxmori.com/en/)
+
+**本站下载 / Direct downloads:** [Windows x64 (Intel / AMD)](https://wxmori.com/download/windows-amd64) · [所有平台 / All platforms](https://wxmori.com/#downloads)
+
 ## About / 项目简介
 
 **中文：** WxMori（微忆）是独立的 Go 命令行工具和本地 MCP 服务，用于读取微信 4.x 聊天数据库。当前预览版为 `v0.2.0-alpha.2`，通过官方 `github.com/modelcontextprotocol/go-sdk` 使用 stdio 通信，采用 MIT 许可证。仅从源码构建需要 Go 1.26 或更新版本。
